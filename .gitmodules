@@ -1,0 +1,3 @@
+[submodule "plugins/inputex/lib/inputex"]
+	path = plugins/inputex/lib/inputex
+	url = git@github.com:jdmorani/inputex.git

@@ -2057,7 +2057,7 @@ WireIt.Terminal.prototype = {
 				curleft += obj.offsetLeft;
 				curtop += obj.offsetTop;
 				obj = obj.offsetParent;
-			} while ( !!obj && obj != layerEl);
+		  } while ( !!obj && obj != layerEl && !YAHOO.util.Dom.hasClass(obj, "WireIt-Layer"));
 		}
 
 		return [curleft+15,curtop+15];
