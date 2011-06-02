@@ -212,8 +212,8 @@ YAHOO.lang.extend(WireIt.LayerMap, WireIt.CanvasElement, {
       
       // Canvas Region
       var canvasRegion = Dom.getRegion(this.element);
-      var canvasWidth = canvasRegion.right-canvasRegion.left-4;
-      var canvasHeight = canvasRegion.bottom-canvasRegion.top-4;
+      var canvasWidth = ctxt.canvas.width;
+      var canvasHeight = ctxt.canvas.height;
       
       // Clear Rect
       ctxt.clearRect(0,0, canvasWidth, canvasHeight);
