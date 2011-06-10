@@ -3694,8 +3694,8 @@ YAHOO.lang.extend(WireIt.LayerMap, WireIt.CanvasElement, {
       
       // Canvas Region
       var canvasRegion = Dom.getRegion(this.element);
-      var canvasWidth = ctxt.canvas.width;//canvasRegion.right-canvasRegion.left-4;
-      var canvasHeight = ctxt.canvas.height;//canvasRegion.bottom-canvasRegion.top-4;
+      var canvasWidth = ctxt.canvas.width;
+      var canvasHeight = ctxt.canvas.height;
       
       // Clear Rect
       ctxt.clearRect(0,0, canvasWidth, canvasHeight);
@@ -8070,6 +8070,952 @@ inputEx.messages.okEditor = "Ok";
 inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
    { type:'type', label: 'Editor', name: 'editorField'}
 ]);
+
+})();(function() {
+  var util = YAHOO.util,
+      Event = YAHOO.util.Event,
+      lang = YAHOO.lang;
+
+  /**
+   * Create a table field select field
+   * @class inputEx.SelectField
+   * @extends inputEx.Field
+   * @constructor
+   * @param {Object} options Added options:
+   * <ul>
+   *    <li>choices: contains the list of choices configs ([{value:'usa'}, {value:'fr', label:'France'}])</li>
+   * </ul>
+   */
+  inputEx.DynamicField = function(options) {
+    inputEx.DynamicField.superclass.constructor.call(this, options);
+
+    this.options.fieldDidChangeEvt = new util.CustomEvent('fieldDidChange', this);
+
+    this.options.parentDynamicTable = this.retrieveParentDynamicTable(this);
+
+    var table_key = null;
+    if (typeof this.options.parentDynamicTable != 'undefined' && this.options.parentDynamicTable){
+      table_key = this.options.parentDynamicTable.inputs[0].options.selectedValue;
+    }
+    
+    this.updateFieldList(table_key);
+  };
+
+  lang.extend(inputEx.DynamicField, inputEx.SelectField, {
+
+    /**
+     * Recursively go through the chain of parents for the
+     * specified field and retrieve its top parent that is
+     * of type table. For any other type null will be returned
+     * or if we reached the end of the chain.
+     */
+    retrieveParentDynamicTable: function(table) {
+      if (table.type == 'table') return table;
+      while (table.parentField && typeof table.parentField != 'undefined') {
+        parentTable = this.retrieveParentDynamicTable(table.parentField, table);
+        if(parentTable && this.parentField != parentTable) return parentTable;
+        return null;
+      }
+    },
+
+    /**
+     * Fire the "tableDidChange" event
+     * Escape the stack using a setTimeout
+     */
+    fireFieldDidChangeEvt: function() {
+      // Uses setTimeout to escape the stack (that originiated in an event)
+      var that = this;
+      setTimeout(function() {
+        that.options.fieldDidChangeEvt.fire(that.getValue(), that);
+      }, 50);
+    },
+
+    /**
+     * Register the tableDidChange event
+     */
+    setTableDidChangeCallback: function(event) {      
+      this.options.tableDidChangeEvt = event;
+      event.subscribe(this.onTableDidChange, this, true);
+    },
+
+    onTableDidChange: function(event, args) {
+      this.clearFieldsList();
+      this.updateFieldList(args[0]);
+      this.setValue(this.options.selectedValue, false);
+    },
+
+    onChange: function(e) {
+      this.fireFieldDidChangeEvt();
+      // inputEx.DynamicField.superclass.onChange.call(this, e);
+    },
+
+
+    /**
+     * Retrieve the list of tables to be used to populate
+     * the select field
+     */
+    updateFieldList: function(table_key) {      
+      try {
+        if(table_key && table_key != ''){
+          for (var i = 0; i < inputEx.TablesFields.length; i++) {
+            if (inputEx.TablesFields[i].table.key == table_key) {
+              for (var j = 0; j < inputEx.TablesFields[i].table.fields.length; j++) {
+                this.addChoice({
+                  label: inputEx.TablesFields[i].table.fields[j].name,
+                  value: inputEx.TablesFields[i].table.fields[j].key
+                });
+              }
+              break;
+            }
+          }
+        }else{
+          for(var i=0; i<inputEx.OrphanFields.length;i++){
+            this.addChoice({
+              label: inputEx.OrphanFields[i].field.name,
+              value: inputEx.OrphanFields[i].field.key
+            });
+          }
+        }
+      } catch (err) {
+        console.log("inputEx.TablesFields is undefined. - " + err)
+      }
+    },
+
+    /**
+     * Return the value
+     * @return {Any} the selected value
+     */
+    getValue: function() {
+
+      var choiceIndex;
+
+      if (this.el.selectedIndex >= 0) {
+
+        choiceIndex = inputEx.indexOf(this.el.childNodes[this.el.selectedIndex], this.choicesList, function(node, choice) {
+          return node === choice.node;
+        });
+        return this.choicesList[choiceIndex].value;
+
+      } else {
+
+        return "";
+
+      }
+    },
+
+
+
+    /**
+     * Set the value
+     * @param {String} value The value to set
+     * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
+     */
+    setValue: function(value, sendUpdatedEvt) {
+
+      var i, length, choice, firstIndexAvailable, choiceFound = false;
+
+      this.options.selectedValue = value;
+
+      for (i = 0, length = this.choicesList.length; i < length; i += 1) {
+
+        if (this.choicesList[i].visible) {
+
+          choice = this.choicesList[i];
+
+          if (value === choice.value) {
+
+            choice.node.selected = "selected";
+            choiceFound = true;
+            break; // choice node already found
+          } else if (lang.isUndefined(firstIndexAvailable)) {
+
+            firstIndexAvailable = i;
+          }
+
+        }
+
+      }
+
+      // select value from first choice available when
+      // value not matching any visible choice
+      //
+      // if no choice available (-> firstIndexAvailable is undefined), skip value setting
+      if (!choiceFound && !lang.isUndefined(firstIndexAvailable)) {
+
+        choice = this.choicesList[firstIndexAvailable];
+        choice.node.selected = "selected";
+        value = choice.value;
+
+      }
+
+      // Call Field.setValue to set class and fire updated event
+      inputEx.SelectField.superclass.setValue.call(this, value, sendUpdatedEvt);
+    },
+
+
+    /**
+     * Set the default values of the options
+     * @param {Object} options Options object as passed to the constructor
+     */
+    setOptions: function(options) {
+
+      var i, length;
+
+      inputEx.SelectField.superclass.setOptions.call(this, options);
+
+      this.options.choices = lang.isArray(options.choices) ? options.choices : [];
+
+      // Retro-compatibility with old pattern (changed since 2010-06-30)
+      if (lang.isArray(options.selectValues)) {
+
+        for (i = 0, length = options.selectValues.length; i < length; i += 1) {
+
+          this.options.choices.push({
+            value: options.selectValues[i],
+            label: "" + ((options.selectOptions && !lang.isUndefined(options.selectOptions[i])) ? options.selectOptions[i] : options.selectValues[i])
+          });
+
+        }
+      }
+
+    },
+
+    destroy: function() {
+
+      if(this.options.tableDidChangeEvt){
+        this.options.tableDidChangeEvt.unsubscribe(this.onTableDidChange, this); 
+      }
+
+      // Unsubscribe all listeners on the fieldDidChangeEvt
+      this.options.fieldDidChangeEvt.unsubscribeAll();
+
+      // Destroy group itself      
+      inputEx.DynamicField.superclass.destroy.call(this);
+    },
+
+
+  });
+
+
+  // Augment prototype with choice mixin (functions : addChoice, removeChoice, etc.)
+  lang.augmentObject(inputEx.SelectField.prototype, inputEx.mixin.choice);
+
+
+  // Register this class as "select" type
+  inputEx.registerType("dynamicfield", inputEx.DynamicField, [{
+    type: 'list',
+    name: 'choices',
+    label: 'Choices',
+    elementType: {
+      type: 'group',
+      fields: [{
+        label: 'Value',
+        name: 'value',
+        value: ''
+      }, // not required to allow '' value (which is default)
+      {
+        label: 'Label',
+        name: 'label'
+      } // optional : if left empty, label is same as value
+      ]
+    },
+    value: [],
+    required: true
+  }]);
+
+}());(function() {
+  var util = YAHOO.util
+  var Event = YAHOO.util.Event,
+      lang = YAHOO.lang;
+
+  /**
+   * Create a table select field
+   * @class inputEx.SelectField
+   * @extends inputEx.Field
+   * @constructor
+   * @param {Object} options Added options:
+   * <ul>
+   *    <li>choices: contains the list of choices configs ([{value:'usa'}, {value:'fr', label:'France'}])</li>
+   * </ul>
+   */
+  inputEx.DynamicTable = function(options) {
+    /**
+     * Event fired after the table got populated or after the user changed the selected field
+     * @event tableDidChange
+     * @param {Any} value The new value of the field
+     * @desc YAHOO custom event fired when the field is "updated"<br /> subscribe with: this.updatedEvt.subscribe(function(e, params) { var value = params[0]; console.log("updated",value, this.updatedEvt); }, this, true);
+     */
+    inputEx.DynamicTable.superclass.constructor.call(this, options);
+
+    this.options.tableDidChangeEvt = new util.CustomEvent('tableDidChange', this);
+
+    this.options.selectedValue = null;
+
+    //this.parentField.parentField because we want to skip the first group/table/dynamic_table in the hierarchy
+    this.options.parentDynamicTable = this.retrieveParentDynamicTable(this.parentField.parentField);
+
+    this.subscribeToParentFieldTableDidChangeEvent();
+
+    this.updateTableList();
+
+  };
+
+  lang.extend(inputEx.DynamicTable, inputEx.SelectField, {
+
+    /**
+     * Recursively go through the chain of parents for the
+     * specified field and retrieve its top parent that is
+     * of type table. For any other type null will be returned
+     * or if we reached the end of the chain.
+     */
+    retrieveParentDynamicTable: function(table) {
+      if (table.type == 'table') return table;
+      while (table.parentField && typeof table.parentField != 'undefined') {
+        parentTable = this.retrieveParentDynamicTable(table.parentField, table);
+        if(parentTable && this.parentField != parentTable) return parentTable;
+        return null;
+      }
+    },
+
+    subscribeToParentFieldTableDidChangeEvent: function(){
+      if(this.options.parentDynamicTable){
+        for(var i = 0; i < this.options.parentDynamicTable.inputs.length; i++){
+          if(this.options.parentDynamicTable.inputs[i].type == 'dynamictable'){
+            // subscribe to the parent field tableDidChangeEvent            
+            this.options.parentTableDidChangeEvt = this.options.parentDynamicTable.inputs[i].options.tableDidChangeEvt;
+            this.options.parentTableDidChangeEvt.subscribe(this.onParentTableDidChange, this, true);
+          }
+        }
+      }
+    },
+
+    onParentTableDidChange: function(event, args){
+      //this.clearFieldsList();
+      this.updateTableList();
+    },
+
+    /**
+     * Fire the "tableDidChange" event
+     * Escape the stack using a setTimeout
+     */
+    fireTableDidChangeEvt: function() {
+      // Uses setTimeout to escape the stack (that originiated in an event)      
+      var that = this;
+      setTimeout(function() {
+        if(that.options.selectedValue != that.getValue()){
+          that.options.selectedValue = that.getValue();
+          that.options.tableDidChangeEvt.fire(that.getValue(), that);
+        }
+      }, 50);
+    },
+
+    getFieldsList: function(){
+      var fieldsToAdd = inputEx.TablesFields;
+      var parentField = this.options.parentDynamicTable;
+      if (parentField){
+        fieldsToAdd = [];
+        for (var i = 0; i < parentField.inputs.length; i++) {
+          if (parentField.inputs[i].type == 'dynamictable') {
+            for(var j = 0; j < inputEx.TablesFields.length;j++){
+              if(inputEx.TablesFields[j].table.key == parentField.inputs[i].options.selectedValue){
+                for(var k = 0; k < inputEx.TablesFields[j].table.children.length;k++){                  
+                  fieldsToAdd.push({'table' : inputEx.TablesFields[j].table.children[k]});
+                }
+              }
+            }
+            break;
+          }
+        }
+      } else {
+        fieldsToAdd = []
+        for (var i = 0; i < inputEx.TablesFields.length; i++) {
+          if(inputEx.TablesFields[i].table.parents.length == 0){
+            fieldsToAdd.push(inputEx.TablesFields[i]);
+          }
+        }
+      }
+
+      return fieldsToAdd;
+    },
+
+    /**
+     * Retrieve the list of tables to be used to populate
+     * the select field
+     */
+    updateTableList: function() {
+      try {
+        this.clearFieldsList();
+        var fieldsList = this.getFieldsList(this.options.parentField);
+        if(fieldsList.length > 0){
+          this.addChoice({
+            label: "",
+            value: ""
+          });
+        }
+        for (var i = 0; i < fieldsList.length; i++) {
+          this.addChoice({
+            label: fieldsList[i].table.name,
+            value: fieldsList[i].table.key
+          });
+        }
+        this.fireTableDidChangeEvt();
+      } catch (err) {
+        console.log("inputEx.TablesFields is undefined. - " + err)
+      }
+    },
+
+    /**
+     * Set the default values of the options
+     * @param {Object} options Options object as passed to the constructor
+     */
+    setOptions: function(options) {
+
+      var i, length;
+
+      inputEx.SelectField.superclass.setOptions.call(this, options);
+
+      this.options.choices = lang.isArray(options.choices) ? options.choices : [];
+
+      // Retro-compatibility with old pattern (changed since 2010-06-30)
+      if (lang.isArray(options.selectValues)) {
+
+        for (i = 0, length = options.selectValues.length; i < length; i += 1) {
+
+          this.options.choices.push({
+            value: options.selectValues[i],
+            label: "" + ((options.selectOptions && !lang.isUndefined(options.selectOptions[i])) ? options.selectOptions[i] : options.selectValues[i])
+          });
+
+        }
+      }
+
+    },
+
+    /**
+     * Build a select tag with options
+     */
+    renderComponent: function() {
+
+      var i, length;
+
+      // create DOM <select> node
+      this.el = inputEx.cn('select', {
+
+        id: this.divEl.id ? this.divEl.id + '-field' : YAHOO.util.Dom.generateId(),
+        name: this.options.name || ''
+
+      });
+
+      // list of choices (e.g. [{ label: "France", value:"fr", node:<DOM-node>, visible:true }, {...}, ...])
+      this.choicesList = [];
+
+      // add choices
+      for (i = 0, length = this.options.choices.length; i < length; i += 1) {
+        this.addChoice(this.options.choices[i]);
+      }
+
+      // append <select> to DOM tree
+      this.fieldContainer.appendChild(this.el);
+    },
+
+    /**
+     * Register the "change" event
+     */
+    initEvents: function() {
+      Event.addListener(this.el, "change", this.onChange, this, true);
+      Event.addFocusListener(this.el, this.onFocus, this, true);
+      Event.addBlurListener(this.el, this.onBlur, this, true);
+    },
+
+    onChange: function(e) {
+      this.fireTableDidChangeEvt();
+    },
+
+    /**
+     * Set the value
+     * @param {String} value The value to set
+     * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
+     */
+    setValue: function(value, sendUpdatedEvt) {
+      var i, length, choice, firstIndexAvailable, choiceFound = false;      
+
+      for (i = 0, length = this.choicesList.length; i < length; i += 1) {
+
+        if (this.choicesList[i].visible) {
+          choice = this.choicesList[i];
+
+          if (value === choice.value) {
+
+            choice.node.selected = "selected";
+            choiceFound = true;
+            this.options.selectedValue = value;
+            break; // choice node already found
+          } else if (lang.isUndefined(firstIndexAvailable)) {
+
+            firstIndexAvailable = i;
+          }
+
+        }
+
+      }
+
+      // select value from first choice available when
+      // value not matching any visible choice
+      //
+      // if no choice available (-> firstIndexAvailable is undefined), skip value setting
+      if (!choiceFound && !lang.isUndefined(firstIndexAvailable)) {
+
+        choice = this.choicesList[firstIndexAvailable];
+        choice.node.selected = "selected";
+        value = choice.value;
+
+      }
+
+      // Call Field.setValue to set class and fire updated event
+      inputEx.SelectField.superclass.setValue.call(this, value, sendUpdatedEvt);
+    },
+
+    /**
+     * Return the value
+     * @return {Any} the selected value
+     */
+    getValue: function() {
+
+      var choiceIndex;
+
+      if (this.el.selectedIndex >= 0) {
+
+        choiceIndex = inputEx.indexOf(this.el.childNodes[this.el.selectedIndex], this.choicesList, function(node, choice) {
+          return node === choice.node;
+        });
+        return this.choicesList[choiceIndex].value;
+
+      } else {
+
+        return "";
+
+      }
+    },
+
+    /**
+     * Disable the field
+     */
+    disable: function() {
+      this.el.disabled = true;
+    },
+
+    /**
+     * Enable the field
+     */
+    enable: function() {
+      this.el.disabled = false;
+    },
+
+    createChoiceNode: function(choice) {
+
+      return inputEx.cn('option', {
+        value: choice.value
+      }, null, choice.label);
+
+    },
+
+    removeChoiceNode: function(node) {
+
+      // remove from selector
+      // 
+      //   -> style.display = 'none' would work only on FF (when node is an <option>)
+      //   -> other browsers (IE, Chrome...) require to remove <option> node from DOM
+      //
+      this.el.removeChild(node);
+
+    },
+
+    disableChoiceNode: function(node) {
+
+      node.disabled = "disabled";
+
+    },
+
+    enableChoiceNode: function(node) {
+
+      node.removeAttribute("disabled");
+
+    },
+
+    destroy: function(){      
+      // Unsubscribe all listeners on the tableDidChangeEvt
+      this.options.tableDidChangeEvt.unsubscribeAll();
+
+      if(this.options.parentTableDidChangeEvt){
+        this.options.parentTableDidChangeEvt.unsubscribe(this.onParentTableDidChange, this);
+      }
+            
+      // Destroy group itself      
+      inputEx.DynamicTable.superclass.destroy.call(this);
+    },
+
+    /**
+     * Attach an <option> node to the <select> at the specified position
+     * @param {HTMLElement} node The <option> node to attach to the <select>
+     * @param {Int} position The position of the choice in choicesList (may not be the "real" position in DOM)
+     */
+    appendChoiceNode: function(node, position) {
+
+      var domPosition, i;
+
+      // Compute real DOM position (since previous choices in choicesList may be hidden)
+      domPosition = 0;
+
+      for (i = 0; i < position; i += 1) {
+
+        if (this.choicesList[i].visible) {
+
+          domPosition += 1;
+
+        }
+
+      }
+
+      // Insert in DOM
+      if (domPosition < this.el.childNodes.length) {
+
+        YAHOO.util.Dom.insertBefore(node, this.el.childNodes[domPosition]);
+
+      } else {
+
+        this.el.appendChild(node);
+
+      }
+    }
+
+  });
+
+  // Augment prototype with choice mixin (functions : addChoice, removeChoice, etc.)
+  lang.augmentObject(inputEx.SelectField.prototype, inputEx.mixin.choice);
+
+
+  // Register this class as "select" type
+  inputEx.registerType("dynamictable", inputEx.DynamicTable, [{
+    type: 'list',
+    name: 'choices',
+    label: 'Choices',
+    elementType: {
+      type: 'group',
+      fields: [{
+        label: 'Value',
+        name: 'value',
+        value: ''
+      }, // not required to allow '' value (which is default)
+      {
+        label: 'Label',
+        name: 'label'
+      } // optional : if left empty, label is same as value
+      ]
+    },
+    value: [],
+    required: true
+  }]);
+
+}());(function() {
+
+  var lang = YAHOO.lang,
+      Dom = YAHOO.util.Dom,
+      Event = YAHOO.util.Event;
+
+  /**
+   * Handle a table of fields
+   * @class inputEx.Table
+   * @extends inputEx.Group
+   * @constructor
+   * @param {Object} options The following options are added for Tables and subclasses:
+   * <ul>
+   *   <li>fields: Array of input fields declared like { label: 'Enter the value:' , type: 'text' or fieldClass: inputEx.Field, optional: true/false, ... }</li>
+   *   <li>legend: The legend for the fieldset (default is an empty string)</li>
+   *   <li>collapsible: Boolean to make the table collapsible (default is false)</li>
+   *   <li>collapsed: If collapsible only, will be collapsed at creation (default is false)</li>
+   *   <li>flatten:</li>
+   * </ul>
+   */
+  inputEx.Table = function(options) {
+    inputEx.Table.superclass.constructor.call(this, options);
+
+    // Run default field interactions (if setValue has not been called before)
+    if (!this.options.value) {
+      this.runFieldsInteractions();
+    }
+  };
+
+  lang.extend(inputEx.Table, inputEx.Group, {
+
+    /**
+     * Adds some options: legend, collapsible, fields...
+     * @param {Object} options Options object as passed to the constructor
+     */
+    setOptions: function(options) {
+      inputEx.Table.superclass.setOptions.call(this, options);
+
+      this.options.className = options.className || 'inputEx-Group';
+
+      this.options.fields = options.fields;
+
+      this.options.flatten = options.flatten;
+
+      this.options.legend = options.legend || '';
+
+      this.options.collapsible = lang.isUndefined(options.collapsible) ? false : options.collapsible;
+      this.options.collapsed = lang.isUndefined(options.collapsed) ? false : options.collapsed;
+
+      this.options.disabled = lang.isUndefined(options.disabled) ? false : options.disabled;
+
+      // Array containing the list of the field instances
+      this.inputs = [];
+
+      // Associative array containing the field instances by names
+      this.inputsNames = {};
+
+      // associate the table with the initial fields list
+      if (this.options.fields.length == 0) {
+        this.updateFieldList();
+      }
+      this.subscribeToTableDidChangeEvent();
+    },
+
+    subscribeToTableDidChangeEvent: function() {
+      if (this.parentField && this.parentField.group && this.parentField.group.type == 'table') {
+        for (var i = 0; i < this.parentField.group.inputs.length; i++) {
+          if (this.parentField.group.inputs[i].type == 'dynamictable') {
+            // subscribe to the parent field tableDidChangeEvent
+            this.options.parentTableDidChange = this.parentField.group.inputs[i].options.tableDidChangeEvt;
+            this.options.parentTableDidChange.subscribe(this.onTableDidChange, this, true);
+          }
+        }
+      }
+    },
+
+    onTableDidChange: function(e, args) {
+      this.options.name = args[0];
+      this.updateFieldList();
+    },
+
+    /**
+     * Retrieve the list of tables to be used to populate
+     * the select field
+     */
+    updateFieldList: function() {
+      try {
+        var fields = [];
+        this.setFieldsList(this.parentField.group, []);
+        for (var i = 0; i < inputEx.TablesFields.length; i++) {
+          if (inputEx.TablesFields[i].table.id == this.options.name) {
+            for (var j = 0; j < inputEx.TablesFields[i].table.fields.length; j++) {
+              fields.push({
+                label: inputEx.TablesFields[i].table.fields[j].name,
+                type: "string",
+                tablefield : [this.options.name, inputEx.TablesFields[i].table.fields[j].id]
+              });
+            }
+            break;
+          }
+        }
+        if (fields.length > 0) this.setFieldsList(this.parentField.group, fields);
+      } catch (err) {
+        console.log("inputEx.TablesFields is undefined. - " + err)
+      }
+    },
+
+    addField: function(fieldOptions) {
+      if (fieldOptions.tablefield) {
+        fieldOptions.tablefield[0] = this.options.name;
+      }
+      var field = this.renderField(fieldOptions);
+      this.fieldset.appendChild(field.getEl());
+    },
+
+    destroy: function() {
+      if (this.options.parentTableDidChange) this.options.parentTableDidChange.unsubscribe(this.onTableDidChange, this);
+
+      // Destroy group itself      
+      inputEx.Table.superclass.destroy.call(this);
+
+    },
+
+    setFieldsList: function(group, fields) {
+      for (var i = 0; i < group.inputs.length; i++) {
+        if (group.inputs[i].type == 'list') {
+          group.inputs[i].setValue(fields);
+        }
+      }
+    },
+
+
+  });
+
+
+  // Register this class as "table" type
+  inputEx.registerType("table", inputEx.Table, [{
+    type: "dynamictable",
+    label: "Name",
+    name: "name",
+    choices: [],
+    required: true
+  }, {
+    type: 'string',
+    label: 'Legend',
+    name: 'legend'
+  }, {
+    type: 'boolean',
+    label: 'Collapsible',
+    name: 'collapsible',
+    value: false
+  }, {
+    type: 'boolean',
+    label: 'Collapsed',
+    name: 'collapsed',
+    value: false
+  }, {
+    type: 'list',
+    label: 'Fields',
+    name: 'fields',
+    elementType: {
+      type: 'type'
+    }
+  }], true);
+
+
+})();(function() {
+  var util = YAHOO.util,
+      lang = YAHOO.lang,
+      Event = util.Event,
+      Dom = util.Dom;
+
+  /**
+   * Create a group of fields within a FORM tag and adds buttons
+   * @class inputEx.Form
+   * @extends inputEx.Group
+   * @constructor
+   * @param {Object} options The following options are added for Forms:
+   * <ul>
+   *   <li>buttons: list of button definition objects {value: 'Click Me', type: 'submit'}</li>
+   *   <li>ajax: send the form through an ajax request (submit button should be present): {method: 'POST', uri: 'myScript.php', callback: same as YAHOO.util.Connect.asyncRequest callback}</li>
+   *   <li>showMask: adds a mask over the form while the request is running (default is false)</li>
+   * </ul>
+   */
+  inputEx.TableField = function(options) {
+    inputEx.TableField.superclass.constructor.call(this, options);
+  };
+
+  lang.extend(inputEx.TableField, inputEx.CombineField, {
+
+    /**
+     * Adds buttons and set ajax default parameters
+     * @param {Object} options Options object as passed to the constructor
+     */
+    setOptions: function(options) {
+      inputEx.TableField.superclass.setOptions.call(this, options);
+
+      this.options.fields = [{
+        type: 'dynamictable',
+        name: 'table'
+      }, {
+        type: 'dynamicfield',
+        name: 'field'
+      }]
+    },
+
+    onFieldDidChange: function(event, arg) {
+      //this.fireUpdatedEvt();
+    },
+
+    onTableDidChange: function(event, arg) {
+      //this.fireUpdatedEvt();
+    },
+
+    render: function() {
+      // Create the div wrapper for this group
+      this.divEl = inputEx.cn('div', {
+        className: this.options.className
+      });
+      if (this.options.id) {
+        this.divEl.id = this.options.id;
+      }
+
+      Dom.addClass(this.divEl, "inputEx-required");
+
+      // Label element
+      if (YAHOO.lang.isString(this.options.label)) {
+        this.labelDiv = inputEx.cn('div', {
+          id: this.divEl.id + '-label',
+          className: 'inputEx-label',
+          'for': this.divEl.id + '-field'
+        });
+        this.labelEl = inputEx.cn('label', null, null, this.options.label === "" ? "&nbsp;" : this.options.label);
+        this.labelDiv.appendChild(this.labelEl);
+        this.divEl.appendChild(this.labelDiv);
+      }
+
+      this.renderFields(this.divEl);
+
+      if (this.options.disabled) {
+        this.disable();
+      }
+
+      // Insert a float breaker
+      this.divEl.appendChild(inputEx.cn('div', {
+        className: "inputEx-clear-div"
+      }, null, " "));
+    },
+
+    /**
+     * Instanciate one field given its parameters, type or fieldClass
+     * @param {Object} fieldOptions The field properties as required by the inputEx() method
+     */
+    renderField: function(fieldOptions) {
+
+      // Instanciate the field
+      var fieldInstance = inputEx(fieldOptions, this);
+
+      if (fieldOptions.type == 'dynamictable') {
+        this.options.tableDidChangeEvt = fieldInstance.options.tableDidChangeEvt;
+        this.options.tableDidChangeEvt.subscribe(this.onTableDidChange, this, true);
+      }
+
+      if (fieldOptions.type == 'dynamicfield') {
+        fieldInstance.setTableDidChangeCallback(this.options.tableDidChangeEvt);
+        fieldInstance.options.fieldDidChangeEvt.subscribe(this.onFieldDidChange, this, true);
+      }
+
+      this.inputs.push(fieldInstance);
+
+      // Create an index to access fields by their name
+      if (fieldInstance.options.name) {
+        this.inputsNames[fieldInstance.options.name] = fieldInstance;
+      }
+
+      // Create the this.hasInteractions to run interactions at startup
+      if (!this.hasInteractions && fieldOptions.interactions) {
+        this.hasInteractions = true;
+      }
+
+      // Subscribe to the field "updated" event to send the group "updated" event
+      fieldInstance.updatedEvt.subscribe(this.onChange, this, true);
+
+      // Subscribe to the field "updated" event to send the group "updated" event
+      // this.options.tableDidChangeEvt.subscribe(this.onChange, this, true);
+
+      return fieldInstance;
+    },
+
+    /**
+     * Purge all event listeners and remove the component from the dom
+     */
+    destroy: function() {
+      // Destroy the combine field itself      
+      inputEx.TableField.superclass.destroy.call(this);
+    },
+  });
+
+  // Register this class as "form" type
+  inputEx.registerType("tablefield", inputEx.TableField, []);
 
 })();(function() {
 
