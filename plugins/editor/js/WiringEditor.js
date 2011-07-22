@@ -501,7 +501,7 @@
         
         if (lang.isArray(wiring.modules)) {
           // Containers
-          for (i = 0; i < wiring.modules.length; i++) {
+          for (var i = 0; i < wiring.modules.length; i++) {
             var m = wiring.modules[i];
             if (this.modulesByName[m.name]) {
               var baseContainerConfig = this.modulesByName[m.name].container;
@@ -556,8 +556,8 @@
         wires: [],
         properties: null
       };
-
-      for (i = 0; i < this.layer.containers.length; i++) {
+      
+      for (var i = 0; i < this.layer.containers.length; i++) {
         obj.modules.push({
           name: this.layer.containers[i].title,
           value: this.layer.containers[i].getValue(),
@@ -565,7 +565,7 @@
         });
       }
 
-      for (i = 0; i < this.layer.wires.length; i++) {
+      for (var i = 0; i < this.layer.wires.length; i++) {
         var wire = this.layer.wires[i];
         var wireObj = wire.getConfig();
         wireObj.src = {

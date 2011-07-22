@@ -30,6 +30,23 @@ inputEx.Group.prototype.setContainer = function(container) {
 
 
 /**
+ * Combine must set the container recursively
+ */
+inputEx.CombineField.prototype.setContainer = function(container) {
+	
+	inputEx.CombineField.superclass.setContainer.call(this, container);
+	
+	// Group and inherited fields must set this recursively
+	if(this.inputs) {
+		for(var i = 0 ; i < this.inputs.length ; i++) {
+			this.inputs[i].setContainer(container);
+		}
+	}
+	
+};
+
+
+/**
  * List must set the container recursively
  */
 inputEx.ListField.prototype.setContainer = function(container) {
@@ -43,6 +60,8 @@ inputEx.ListField.prototype.setContainer = function(container) {
 	}
 	
 };
+
+
 
 /**
  * setContainer must be called on each new element

@@ -1,6 +1,7 @@
 (function() {
 
    var lang = YAHOO.lang;
+   var Dom = YAHOO.util.Dom;
 
 /**
  * Copy of the original inputEx.Field class that we're gonna override to extend it.
@@ -52,15 +53,22 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
    renderTerminal: function() {
 
       var wrapper = inputEx.cn('div', {className: 'WireIt-InputExTerminal'});
-      this.divEl.insertBefore(wrapper, this.fieldContainer);
+        
+      this.fieldContainer.appendChild(wrapper);
+
+      //align the terminal to the left
+      divs = Dom.getChildren(this.fieldContainer);
+      for(i in divs){
+        Dom.setStyle(divs[i], 'float', 'left');  
+      }
 
       this.terminal = new WireIt.Terminal(wrapper, {
          name: this.options.name, 
-         direction: [-1,0],
-         fakeDirection: [0, 1],
+         direction: [0, 0],
+         fakeDirection: [0, 0],
          ddConfig: {
-            type: "input",
-            allowedTypes: ["output"]
+            type: "output",
+            allowedTypes: ["input"]
          },
       nMaxWires: 1 }, this.options.container);
 
@@ -68,44 +76,90 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
       if(this.options.container) {
          this.options.container.terminals.push(this.terminal);
       }
+      
+      //hide the terminal initially
+      if(this.getValue() == '')
+        this.terminal.el.style.display="none";
 
       // Register the events
       this.terminal.eventAddWire.subscribe(this.onAddWire, this, true);
       this.terminal.eventRemoveWire.subscribe(this.onRemoveWire, this, true);
-    },
+    },    
 
-	/**
-	 * Set the container for this field
-	 */
-	setContainer: function(container) {
-		this.options.container = container;
-		if(this.terminal) {
-			this.terminal.container = container;
-			if( WireIt.indexOf(this.terminal, container.terminals) == -1 ) {
-				container.terminals.push(this.terminal);
-			}
-		}		
-	},
+  onChange: function(e) { 
+    if(this.options.wirable){            
+      this.setValue(this.el.value);      
+    }
+    inputEx.Field.superclass.onChange.call(this,e);    
+  },
+  
+  onBlur: function(e){
+    //make sure the name is not already used by another terminal
+    if(typeof this.options.container !== 'undefined' && this.options.container != null){
+      for(var i=0;i<this.options.container.terminals.length;i++){
+        if(this.terminal != this.options.container.terminals[i] && this.getValue() == this.options.container.terminals[i].name ){
+          this.setValue('');
+          break;
+        }
+      }        
+    }
+    inputEx.Field.superclass.onBlur.call(this,e);
+  },
 
-	/**
-	 * also change the terminal name when changing the field name
-	 */
-	setFieldName: function(name) {
-		if(this.terminal) {
-			this.terminal.name = name;
-			this.terminal.el.title = name;
-		}
-	},
+  /**
+   * Set the container for this field
+   */
+  setContainer: function(container) {
+    this.options.container = container;
+    if(this.terminal && container) {
+      this.terminal.container = container;
+      if( WireIt.indexOf(this.terminal, container.terminals) == -1 ) {
+        container.terminals.push(this.terminal);
+      }
+    }   
+  },
+
+  /**
+   * Set the value to be the fieldname which will be used
+   * as a terminal.
+   * We need to do this because in case of a field nested into a list
+   * the field name will be the same and terminals will overlap.
+   */ 
+  setValue: function(value){         
+    inputEx.Field.superclass.setValue.call(this,value);              
+    
+    if(this.options.wirable){
+            
+      if(value == ''){
+        this.terminal.el.style.display="none";
+      }else{
+        this.terminal.el.style.display="block";
+        this.setFieldName(value)  
+      }      
+    }
+  },
+
+  /**
+   * also change the terminal name when changing the field name
+   */
+  setFieldName: function(name) {    
+    if(this.terminal) {
+      this.options.name = name;
+      this.terminal.name = name;
+      this.terminal.el.title = name;
+    }
+  },
 
     /**
      * Remove the input wired state on the 
      * @method onAddWire
      */
     onAddWire: function(e, params) {
-       this.options.container.onAddWire(e,params);
-
-       this.disable();
-       this.el.value = "[wired]";
+      if(this.options.wirable){
+        this.setValue(this.el.value);
+      }
+      this.options.container.onAddWire(e,params);
+      this.disable();
     },
 
     /**
@@ -116,13 +170,12 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
        this.options.container.onRemoveWire(e,params);
 
        this.enable();
-       this.el.value = "";
     }
 
 });
 
 inputEx.Field.groupOptions = inputEx.BaseField.groupOptions.concat([
-	{ type: 'boolean', label: 'Wirable', name: 'wirable', value: false}
+  { type: 'boolean', label: 'Wirable', name: 'wirable', value: false}
 ]);
 
 })();
