@@ -173,7 +173,8 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
 
     preventNameDuplication: function(field){
       //make sure the name is not already used by another terminal
-      if(typeof field.options.container !== 'undefined' && field.options.container != null){
+      if(typeof field.options.container !== 'undefined' && field.options.container != null &&
+         typeof field.terminal !== 'undefined' && field.terminal != null){
         for(var i=0;i<field.options.container.terminals.length;i++){
           if(field.terminal != field.options.container.terminals[i] && field.getValue() == field.options.container.terminals[i].name ){
             field.setValue('');
