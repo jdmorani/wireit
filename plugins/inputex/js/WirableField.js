@@ -131,9 +131,10 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
             
       if(value == ''){
         this.terminal.el.style.display="none";
+        this.setFieldName(value)
       }else{
         this.terminal.el.style.display="block";
-        this.setFieldName(value)  
+        this.setFieldName(value)
       }      
     }
   },
@@ -180,8 +181,8 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
             return;
           }
         }
-      }
-      field.terminal.editable = true;
+        field.terminal.editable = true;
+      }      
     }
 
 
