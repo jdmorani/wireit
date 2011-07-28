@@ -84,7 +84,13 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
       // Register the events
       this.terminal.eventAddWire.subscribe(this.onAddWire, this, true);
       this.terminal.eventRemoveWire.subscribe(this.onRemoveWire, this, true);
+      YAHOO.util.Event.addListener(this.terminal.el, "mousedown", this.onMouseDown, this, true);    
     },    
+
+  onMouseDown: function(e){
+    this.preventNameDuplication(this);
+    return true;
+  },
 
   onChange: function(e) { 
     if(this.options.wirable){            
@@ -95,14 +101,7 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
   
   onBlur: function(e){
     //make sure the name is not already used by another terminal
-    if(typeof this.options.container !== 'undefined' && this.options.container != null){
-      for(var i=0;i<this.options.container.terminals.length;i++){
-        if(this.terminal != this.options.container.terminals[i] && this.getValue() == this.options.container.terminals[i].name ){
-          this.setValue('');
-          break;
-        }
-      }        
-    }
+    this.preventNameDuplication(this);
     inputEx.Field.superclass.onBlur.call(this,e);
   },
 
@@ -168,9 +167,23 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
      */
     onRemoveWire: function(e, params) { 
        this.options.container.onRemoveWire(e,params);
-
        this.enable();
+    },
+
+    preventNameDuplication: function(field){
+      //make sure the name is not already used by another terminal
+      if(typeof field.options.container !== 'undefined' && field.options.container != null){
+        for(var i=0;i<field.options.container.terminals.length;i++){
+          if(field.terminal != field.options.container.terminals[i] && field.getValue() == field.options.container.terminals[i].name ){
+            field.setValue('');
+            field.terminal.editable = false;
+            return;
+          }
+        }
+      }
+      field.terminal.editable = true;
     }
+
 
 });
 
