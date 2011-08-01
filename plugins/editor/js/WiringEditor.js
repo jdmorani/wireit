@@ -217,6 +217,7 @@
         var containerConfig = module.container;
         containerConfig.position = pos;
         containerConfig.title = module.name;
+        containerConfig.type = module.type;
         var temp = this;
         containerConfig.getGrouper = function() {
           return temp.getCurrentGrouper(temp);
@@ -245,7 +246,7 @@
 
       var value = this.getValue();
       if (name == "") {
-        value.name = 'screen_flow';
+        value.name = 'flow';
       }else{
         value.name = name;
       }
@@ -507,6 +508,7 @@
               var baseContainerConfig = this.modulesByName[m.name].container;
               YAHOO.lang.augmentObject(m.config, baseContainerConfig);
               m.config.title = m.name;
+              m.config.type = m.type;              
               var container = this.layer.addContainer(m.config);
               Dom.addClass(container.el, "WiringEditor-module-" + m.name.replace(/ /g, '-'));
               container.setValue(m.value);
@@ -560,6 +562,7 @@
       for (var i = 0; i < this.layer.containers.length; i++) {
         obj.modules.push({
           name: this.layer.containers[i].title,
+          type: this.layer.containers[i].type,
           value: this.layer.containers[i].getValue(),
           config: this.layer.containers[i].getConfig()
         });

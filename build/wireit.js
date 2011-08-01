@@ -2574,6 +2574,15 @@ WireIt.Container.prototype = {
 	title: null,
 
 	/** 
+    * @property type
+    * @description A text that will be used to identify a module type
+    * @default null
+    * @type String
+    */
+	type: null,
+
+
+	/** 
     * @property icon
     * @description image url to be displayed in the module header
     * @default null

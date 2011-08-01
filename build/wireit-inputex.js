@@ -2574,6 +2574,15 @@ WireIt.Container.prototype = {
 	title: null,
 
 	/** 
+    * @property type
+    * @description A text that will be used to identify a module type
+    * @default null
+    * @type String
+    */
+	type: null,
+
+
+	/** 
     * @property icon
     * @description image url to be displayed in the module header
     * @default null
@@ -4974,7 +4983,13 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
       // Register the events
       this.terminal.eventAddWire.subscribe(this.onAddWire, this, true);
       this.terminal.eventRemoveWire.subscribe(this.onRemoveWire, this, true);
+      YAHOO.util.Event.addListener(this.terminal.el, "mousedown", this.onMouseDown, this, true);    
     },    
+
+  onMouseDown: function(e){
+    this.preventNameDuplication(this);
+    return true;
+  },
 
   onChange: function(e) { 
     if(this.options.wirable){            
@@ -4985,14 +5000,7 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
   
   onBlur: function(e){
     //make sure the name is not already used by another terminal
-    if(typeof this.options.container !== 'undefined' && this.options.container != null){
-      for(var i=0;i<this.options.container.terminals.length;i++){
-        if(this.terminal != this.options.container.terminals[i] && this.getValue() == this.options.container.terminals[i].name ){
-          this.setValue('');
-          break;
-        }
-      }        
-    }
+    this.preventNameDuplication(this);
     inputEx.Field.superclass.onBlur.call(this,e);
   },
 
@@ -5022,9 +5030,10 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
             
       if(value == ''){
         this.terminal.el.style.display="none";
+        this.setFieldName(value)
       }else{
         this.terminal.el.style.display="block";
-        this.setFieldName(value)  
+        this.setFieldName(value)
       }      
     }
   },
@@ -5058,9 +5067,24 @@ lang.extend(inputEx.Field, inputEx.BaseField, {
      */
     onRemoveWire: function(e, params) { 
        this.options.container.onRemoveWire(e,params);
-
        this.enable();
+    },
+
+    preventNameDuplication: function(field){
+      //make sure the name is not already used by another terminal
+      if(typeof field.options.container !== 'undefined' && field.options.container != null &&
+         typeof field.terminal !== 'undefined' && field.terminal != null){
+        for(var i=0;i<field.options.container.terminals.length;i++){
+          if(field.terminal != field.options.container.terminals[i] && field.getValue() == field.options.container.terminals[i].name ){
+            field.setValue('');
+            field.terminal.editable = false;
+            return;
+          }
+        }
+        field.terminal.editable = true;
+      }      
     }
+
 
 });
 
@@ -5567,6 +5591,44 @@ YAHOO.lang.extend(WireIt.FormContainer, WireIt.Container, {
     }
   },
 
+   /**
+   * Revert an action (for interactions)
+   * @param {Object} action inputEx action object
+   * @param {Any} triggerValue The value that triggered the interaction
+   */
+  revertAction: function(action, triggerValue) {
+    var field = this.getFieldByName(action.name);
+    if (YAHOO.lang.isFunction(field[action.revert])) {
+      field[action.revert].call(field);
+    } else if (YAHOO.lang.isFunction(action.revert)) {
+      action.revert.call(field, triggerValue);
+    } else {
+      throw new Error("action " + action.revert + " is not a valid revert action for field " + action.name);
+    }
+  }, 
+
+  checkInteractionValue: function(valueTrigger, fieldValue){
+    if(YAHOO.lang.isArray(valueTrigger)){
+      for(var v in valueTrigger){
+        for(var e in valueTrigger[v]){
+          if (YAHOO.lang.isArray(valueTrigger[v][e])){
+            for(var i in valueTrigger[v][e]){
+              if(valueTrigger[v][e][i] === fieldValue[v][e]){
+                return true;
+              }
+            }
+          }else if(valueTrigger[v][e] === fieldValue[v][e]){
+            return true;
+          }
+        }        
+      }
+    }else if (valueTrigger === fieldValue){
+      return true;
+    }
+
+    return false;
+  },
+
   /**
    * Run the interactions for the given field instance
    * @param {inputEx.Field} fieldInstance Field that just changed
@@ -5582,9 +5644,14 @@ YAHOO.lang.extend(WireIt.FormContainer, WireIt.Container, {
     var interactions = fieldConfig.interactions;
     for (var i = 0; i < interactions.length; i++) {
       var interaction = interactions[i];
-      if (interaction.valueTrigger === fieldValue) {
+      var type = 'action'
+      if (this.checkInteractionValue(interaction.valueTrigger, fieldValue)) {
         for (var j = 0; j < interaction.actions.length; j++) {
           this.runAction(interaction.actions[j], fieldValue);
+        }
+      }else{
+        for (var j = 0; j < interaction.actions.length; j++) {
+          this.revertAction(interaction.actions[j], fieldValue);
         }
       }
     }
@@ -8762,11 +8829,11 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
      * Fire the "tableDidChange" event
      * Escape the stack using a setTimeout
      */
-    fireTableDidChangeEvt: function() {
+    fireTableDidChangeEvt: function(force) {
       // Uses setTimeout to escape the stack (that originiated in an event)      
       var that = this;
       setTimeout(function() {
-        if(that.options.selectedValue != that.getValue()){
+        if(force == true || that.options.selectedValue != that.getValue()){
           that.options.selectedValue = that.getValue();
           that.options.tableDidChangeEvt.fire(that.getValue(), that);
         }
@@ -8836,7 +8903,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
 
       var i, length;
 
-      inputEx.SelectField.superclass.setOptions.call(this, options);
+      inputEx.DynamicTable.superclass.setOptions.call(this, options);
 
       this.options.choices = lang.isArray(options.choices) ? options.choices : [];
 
@@ -8936,7 +9003,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
       }
 
       // Call Field.setValue to set class and fire updated event
-      inputEx.SelectField.superclass.setValue.call(this, value, sendUpdatedEvt);
+      inputEx.DynamicTable.superclass.setValue.call(this, value, sendUpdatedEvt);
     },
 
     /**
@@ -9336,6 +9403,17 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
       this.divEl.appendChild(inputEx.cn('div', {
         className: "inputEx-clear-div"
       }, null, " "));
+    },
+
+
+    /**
+     * Set the value
+     * @param {Array} values [value1, value2, ...]
+     * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
+     */
+    setValue: function(values, sendUpdatedEvt) {
+      inputEx.TableField.superclass.setValue.call(this, values, sendUpdatedEvt);
+      this.inputs[0].fireTableDidChangeEvt(true);
     },
 
     /**
