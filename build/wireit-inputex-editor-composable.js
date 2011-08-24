@@ -2582,6 +2582,14 @@ WireIt.Container.prototype = {
 	type: null,
 
 
+  /** 
+    * @property key
+    * @description a field key used as an id
+    * @default null
+    * @type String
+    */
+  key: null,
+
 	/** 
     * @property icon
     * @description image url to be displayed in the module header
@@ -10335,7 +10343,7 @@ lang.extend(WireIt.ModuleProxy,YAHOO.util.DDProxy, {
       this.modules = options.modules || [];
       for (var i = 0; i < this.modules.length; i++) {
         var m = this.modules[i];
-        this.modulesByName[m.name] = m;
+        this.modulesByName[m.key] = m;
       }
 
       this.adapter = options.adapter || WireIt.WiringEditor.adapters.JsonRpc;
@@ -10508,7 +10516,9 @@ lang.extend(WireIt.ModuleProxy,YAHOO.util.DDProxy, {
         var containerConfig = module.container;
         containerConfig.position = pos;
         containerConfig.title = module.name;
-        containerConfig.type = module.type;
+        containerConfig.key = module.key ? module.key : module.name;
+        containerConfig.type = module.type;        
+
         var temp = this;
         containerConfig.getGrouper = function() {
           return temp.getCurrentGrouper(temp);
@@ -10795,16 +10805,17 @@ lang.extend(WireIt.ModuleProxy,YAHOO.util.DDProxy, {
           // Containers
           for (var i = 0; i < wiring.modules.length; i++) {
             var m = wiring.modules[i];
-            if (this.modulesByName[m.name]) {
-              var baseContainerConfig = this.modulesByName[m.name].container;
+            if (this.modulesByName[m.key]) {
+              var baseContainerConfig = this.modulesByName[m.key].container;
               YAHOO.lang.augmentObject(m.config, baseContainerConfig);
               m.config.title = m.name;
-              m.config.type = m.type;              
+              m.config.key = m.key ? m.key : m.name;
+              m.config.type = m.type;
               var container = this.layer.addContainer(m.config);
-              Dom.addClass(container.el, "WiringEditor-module-" + m.name.replace(/ /g, '-'));
+              Dom.addClass(container.el, "WiringEditor-module-" + m.config.key.replace(/ /g, '-'));
               container.setValue(m.value);
             } else {
-              throw new Error("WiringEditor: module '" + m.name + "' not found !");
+              throw new Error("WiringEditor: module '" + m.config.key + "' not found !");
             }
           }
 
@@ -10853,6 +10864,7 @@ lang.extend(WireIt.ModuleProxy,YAHOO.util.DDProxy, {
       for (var i = 0; i < this.layer.containers.length; i++) {
         obj.modules.push({
           name: this.layer.containers[i].title,
+          key: this.layer.containers[i].key ? this.layer.containers[i].key : this.layer.containers[i].title,
           type: this.layer.containers[i].type,
           value: this.layer.containers[i].getValue(),
           config: this.layer.containers[i].getConfig()
