@@ -4096,7 +4096,7 @@ lang.augmentObject(inputEx, {
     * Url to the spacer image. This url schould be changed according to your project directories
     * @type String
     */
-   spacerUrl: "images/space.gif", // 1x1 px
+   spacerUrl: "<%=asset_path 'inputex/space.gif'%>", // 1x1 px
    
    /**
     * Field empty state constant
@@ -4456,11 +4456,14 @@ YAHOO.inputEx = inputEx;
 
       // Basic options
       this.setParentField(options.parentField);
-      this.options.name = options.name;
-      this.options.value = options.value;
-      this.options.id = options.id || Dom.generateId();
+      this.options.name = this.parseName(options.name);
+      this.options.value = options.value;      
+      this.options.id = this.generateId(options);
       this.options.label = options.label;
       this.options.description = options.description;
+      this.options.placeholder = options.placeholder;
+      this.options.hide = lang.isUndefined(options.hide) ? false : options.hide;
+      this.options.readonly = lang.isUndefined(options.readonly) ? false : options.readonly;
 
       // Define default messages
       this.options.messages = {};
@@ -4468,16 +4471,42 @@ YAHOO.inputEx = inputEx;
       this.options.messages.invalid = (options.messages && options.messages.invalid) ? options.messages.invalid : inputEx.messages.invalid;
       //this.options.messages.valid = (options.messages && options.messages.valid) ? options.messages.valid : inputEx.messages.valid;
       // Other options
-      this.options.className = options.className ? options.className : 'inputEx-Field';
+      this.options.className = options.className ? options.className : 'inputEx-Field ' + this.options.name;
       this.options.required = lang.isUndefined(options.required) ? false : options.required;
       this.options.showMsg = lang.isUndefined(options.showMsg) ? false : options.showMsg;
-      this.options.align = lang.isUndefined(options.align) ? false : options.align;
+      this.options.align = options.align;
       this.options.toplabel = lang.isUndefined(options.toplabel) ? false : options.toplabel;
       this.options.newline = lang.isUndefined(options.newline) ? false : options.newline;
 
-      //this.options.table = options.table;
       this.objectType = options.objectType;
 
+    },
+
+    /**
+    * The name may include both the key and the name of the field. If this is the case
+    * the name and key will be delimited with @_@@_@
+    * It's a bit hacky but there is really no way around it unfortunately.
+    */
+    parseName: function(name){
+      if(!lang.isUndefined(name) && name && name.indexOf('@_@@_@') >= 0)
+        return name.split('@_@@_@')[1];
+      return name;
+    },
+
+    generateId: function(options){
+      
+      //get the parentfield name
+      var parentFieldId = null;
+
+      if(typeof this.parentField !== 'undefined' && typeof this.parentField.options.name !== 'undefined')
+        parentFieldId = this.parentField.options.id;
+
+      //get the actual field name, making sure there is no dot in the name
+      var fieldName = (!this.options.name || this.options.name == '' ? Dom.generateId() : this.options.name).replace(/\./g, "_");
+
+      var id = parentFieldId ? parentFieldId + '-' + fieldName : fieldName;
+
+      return (options.id || id)
     },
 
     /**
@@ -4513,7 +4542,19 @@ YAHOO.inputEx = inputEx;
     /**
      * Set the name of the field (or hidden field)
      */
-    setFieldName: function(name) {},
+    setFieldName: function(name) {
+    },
+
+
+
+    /**
+     * Set the id of the field (or hidden field)
+     */
+    setFieldId: function(id) {
+      this.options.id = id;
+      this.divEl.id = this.options.id;
+    },
+
 
     /**
      * Default render of the dom element. Create a divEl that wraps the field.
@@ -4521,7 +4562,7 @@ YAHOO.inputEx = inputEx;
     render: function() {
       // Create a DIV element to wrap the editing el and the image
       this.divEl = inputEx.cn('div', {
-        className: 'inputEx-fieldWrapper'
+        className: 'inputEx-fieldWrapper ' + this.options.id + '-inputEx-fieldWrapper'
       });
       if (this.options.id) {
         this.divEl.id = this.options.id;
@@ -4530,9 +4571,14 @@ YAHOO.inputEx = inputEx;
       var containerField = this.getContainerField();
 
       var isTypeField = this.isInPropertyPanel();
+  
+      if(this.options.placeholder){
+        Dom.setStyle(this.divEl, 'visibility', 'hidden');
+      };
+
       if(this.options.align && !isTypeField){
         Dom.setStyle(this.divEl, 'float', 'left');
-      }else if(!isTypeField){
+      }else if(this.options.align == false && !isTypeField){
         Dom.setStyle(this.divEl, 'clear', 'left');
       }
 
@@ -4547,11 +4593,11 @@ YAHOO.inputEx = inputEx;
       // Label element
       if (YAHOO.lang.isString(this.options.label)) {
         this.labelDiv = inputEx.cn('div', {
-          id: this.divEl.id + '-label',
-          className: 'inputEx-label',
+          id: this.divEl.id + '-label-wrapper',
+          className: 'inputEx-label ' + this.options.id + '-inputEx-label',
           'for': this.divEl.id + '-field'
         });
-        this.labelEl = inputEx.cn('label', null, null, this.options.label === "" ? "&nbsp;" : this.options.label);
+        this.labelEl = inputEx.cn('label', {id: this.options.id + '-label' }, null, this.options.label === "" ? "&nbsp;" : this.options.label);
         this.labelDiv.appendChild(this.labelEl);
         this.divEl.appendChild(this.labelDiv);
       }
@@ -4581,7 +4627,7 @@ YAHOO.inputEx = inputEx;
       if (this.options.description) {
         this.fieldContainer.appendChild(inputEx.cn('div', {
           id: this.divEl.id + '-desc',
-          className: 'inputEx-description'
+          className: 'inputEx-description ' + this.options.id + '-inputEx-description'
         }, null, this.options.description));
       }
 
@@ -4591,6 +4637,16 @@ YAHOO.inputEx = inputEx;
       this.divEl.appendChild(inputEx.cn('div', null, {
         clear: 'both'
       }, " "));
+
+      if(this.options.hide)
+        Dom.setStyle(this.divEl, 'display', 'none');
+      else
+        Dom.setStyle(this.divEl, 'display', '');
+
+      if(this.options.readonly)
+        this.disable();
+      else
+        this.enable();
 
     },
 
@@ -4782,7 +4838,7 @@ YAHOO.inputEx = inputEx;
       //setTimeout(function(){util.Event.purgeElement(el, true);}, 0);
 
       // Purge element (remove listeners on el and childNodes recursively)
-      util.Event.purgeElement(el, false);
+      //util.Event.purgeElement(el, false);
 
       // Remove from DOM
       if (Dom.inDocument(el)) {
@@ -4801,7 +4857,7 @@ YAHOO.inputEx = inputEx;
       }
       if (!this.msgEl) {
         this.msgEl = inputEx.cn('div', {
-          className: 'inputEx-message'
+          className: 'inputEx-message ' + this.options.id + '-inputEx-message'
         });
         try {
           var divElements = this.divEl.getElementsByTagName('div');
@@ -4861,12 +4917,14 @@ YAHOO.inputEx = inputEx;
 
     getFieldType: function(ruby_field_type) {
       switch(ruby_field_type){
+        case "Date":
+          return "date";
         case "String":
           return "string";
         case "Integer":
           return "integer";
         case "Float":
-        case "BigDecimal":        
+        case "BigDecimal":
         case "Money":
           return "number";
         default:
@@ -4879,8 +4937,7 @@ YAHOO.inputEx = inputEx;
   inputEx.Field.groupOptions = [{
     type: "dynamicfield",
     label: "Field",
-    name: "name",
-    choices: [],
+    name: "name",    
     required: true
   }, {
     type: "string",
@@ -4917,7 +4974,22 @@ YAHOO.inputEx = inputEx;
     label: "Label on top?",
     name: "toplabel",
     value: false
-  }
+  },{
+    type: "boolean",
+    label: "Placeholder?",
+    name: "placeholder",
+    value: false
+  },{
+    type: "boolean",
+    label: "Hide?",
+    name: "hide",
+    value: false
+  },{
+    type: "boolean",
+    label: "readonly?",
+    name: "readonly",
+    value: false
+  },  
   ];
 
 })();(function() {
@@ -5446,30 +5518,36 @@ YAHOO.lang.extend(WireIt.FormContainer, WireIt.Container, {
      * @returns {Object} with all Forms's fields state, error message
      * and validate containing a boolean for the global Form validation
      */
-    getFieldsStates: function() {
-      var input, inputName, state, message, returnedObj = {
+    getFieldsStates: function(field, returnedObj) {
+      var input, inputName, state, message, returnedObj = returnedObj || {
         fields: {},
         validate: true
-      };
+      }, inputs = field || this.inputs;
+
 
       // Loop on all the sub fields
-      for (var i = 0; i < this.inputs.length; i++) {
+      for (var i = 0; i < inputs.length; i++) {
 
-        input = this.inputs[i];
+        input = inputs[i];
         inputName = input.options.name;
         state = input.getState();
         message = input.getStateString(state);
 
-        returnedObj.fields[inputName] = {};
-        returnedObj.fields[inputName].valid = true;
-        returnedObj.fields[inputName].message = message;
+        if(inputs[i].subFields)
+          this.getFieldsStates(inputs[i].subFields, returnedObj);
+        else if(inputs[i].inputs && inputs[i].type != 'combine')
+          this.getFieldsStates(inputs[i].inputs, returnedObj);
+        else{                    
+          // check if subfield validates
+          if (state == inputEx.stateRequired || state == inputEx.stateInvalid) {
+            returnedObj.fields[inputName] = {};
+            returnedObj.fields[inputName].message = message;
+            returnedObj.fields[inputName].label = input.options.label;            
+            returnedObj.fields[inputName].valid = false;
+            returnedObj.validate = false;
+          }
 
-        // check if subfield validates
-        if (state == inputEx.stateRequired || state == inputEx.stateInvalid) {
-          returnedObj.fields[inputName].valid = false;
-          returnedObj.validate = false;
         }
-
       }
 
       return returnedObj;
@@ -5530,10 +5608,18 @@ YAHOO.lang.extend(WireIt.FormContainer, WireIt.Container, {
     /**
      * Return an object with all the values of the fields
      */
-    getValue: function() {
+    getValue: function(path) {
       var o = {};
       for (var i = 0; i < this.inputs.length; i++) {
-        var v = this.inputs[i].getValue();
+        var v = null;
+        var local_path = this.inputs[i].options.name.split('@_@@_@')[0] + (['table','list'].indexOf(this.inputs[i].type) >= 0 ? "[" + i + "]" : "");
+        local_path = !path ? local_path : path + "." + local_path
+        if (['button', 'list', 'group', 'table'].indexOf(this.inputs[i].type) >= 0){
+          if(this.inputs[i].type == 'list') local_path = path;            
+          v = this.inputs[i].getValue(local_path);
+        } else{
+          v = this.inputs[i].getValue();
+        }
         if (this.inputs[i].options.name) {
           if(this.inputs[i].options.flatten && lang.isObject(v) ) {
           // if(o[this.inputs[i].options.name] && lang.isObject(v) && !lang.isArray(v)){
@@ -5808,6 +5894,8 @@ inputEx.registerType("group", inputEx.Group, [{
    */
   inputEx.CombineField = function(options) {
     inputEx.CombineField.superclass.constructor.call(this, options);
+
+    this.initAutoTab();
   };
 
   lang.extend(inputEx.CombineField, inputEx.Group, {
@@ -5818,6 +5906,8 @@ inputEx.registerType("group", inputEx.Group, [{
     setOptions: function(options) {
       inputEx.CombineField.superclass.setOptions.call(this, options);
 
+      this.options.regexp = options.regexp;
+
       // Overwrite options
       this.options.className = options.className ? options.className : 'inputEx-CombineField';
 
@@ -5826,7 +5916,6 @@ inputEx.registerType("group", inputEx.Group, [{
     },
 
     render: function() {
-
       // Create the div wrapper for this group
       this.divEl = inputEx.cn('div', {
         className: this.options.className
@@ -5834,6 +5923,24 @@ inputEx.registerType("group", inputEx.Group, [{
       if (this.options.id) {
         this.divEl.id = this.options.id;
       }
+
+      var containerField = this.getContainerField();
+
+      var isTypeField = this.isInPropertyPanel();
+  
+      if(this.options.align && !isTypeField){
+        Dom.setStyle(this.divEl, 'float', 'left');
+      }else if(this.options.align == false && !isTypeField){
+        Dom.setStyle(this.divEl, 'clear', 'left');
+      }
+
+      if(this.options.newline && !isTypeField){
+        Dom.setStyle(this.divEl, 'clear', 'left');
+      }
+
+      if (this.options.required) {
+        Dom.addClass(this.divEl, "inputEx-required");
+      }      
 
       // Label element
       if (YAHOO.lang.isString(this.options.label)) {
@@ -5847,7 +5954,14 @@ inputEx.registerType("group", inputEx.Group, [{
         this.divEl.appendChild(this.labelDiv);
       }
 
+      if(this.options.toplabel && !isTypeField){
+        Dom.setStyle(this.labelDiv, 'text-align', 'left');
+        Dom.setStyle(this.labelDiv, 'float', 'left');
+        Dom.setStyle(this.labelDiv, 'clear', 'left');
+      }
+
       this.renderFields(this.divEl);
+
 
       if (this.options.disabled) {
         this.disable();
@@ -5864,7 +5978,7 @@ inputEx.registerType("group", inputEx.Group, [{
      */
     renderFields: function(parentEl) {
 
-      this.appendSeparator(0);
+      var isTypeField = this.isInPropertyPanel();
 
       if (!this.options.fields) {
         return;
@@ -5875,12 +5989,16 @@ inputEx.registerType("group", inputEx.Group, [{
 
       for (i = 0; i < n; i++) {
         f = this.options.fields[i];
+        
+        f.name = this.options.name;
+        f.id = this.options.id + '-' + i
+
         if (this.options.required) {
           f.required = true;
         }
-        if(this.options.align){
+        //if(this.options.align){
           f.align = true;
-        }
+        //}
         field = this.renderField(f);
         fieldEl = field.getEl();
         t = f.type;
@@ -5888,12 +6006,19 @@ inputEx.registerType("group", inputEx.Group, [{
           // remove the line breaker (<div style='clear: both;'>)
           field.divEl.removeChild(fieldEl.childNodes[fieldEl.childNodes.length - 1]);
         }
+
         // make the field float left
-        Dom.setStyle(fieldEl, 'float', 'left');
+        Dom.setStyle(fieldEl, 'float', 'left');        
+
+        if( i == 0 && this.options.toplabel && !isTypeField){
+          Dom.setStyle(fieldEl, 'text-align', 'left');
+          Dom.setStyle(fieldEl, 'float', 'left');
+          Dom.setStyle(fieldEl, 'clear', 'left');
+        }
 
         this.divEl.appendChild(fieldEl);
 
-        this.appendSeparator(i + 1);
+        this.appendSeparator(i);
       }
 
       this.setFieldName(this.options.name);
@@ -5978,11 +6103,11 @@ inputEx.registerType("group", inputEx.Group, [{
       if (!values) {
         return;
       }
-      var i, n = this.inputs.length;
+      var i, n = this.inputs.length, offset = 0;
       for (i = 0; i < n; i++) {
-        for(p in values[i]){
-          this.inputs[i].setValue(values[i][p], false); 
-        }
+        var len = parseInt(this.inputs[i].options.maxLength);
+        this.inputs[i].setValue(values.substr(offset, len), false);
+        offset += len;
       }
 
       this.runFieldsInteractions();
@@ -5998,15 +6123,85 @@ inputEx.registerType("group", inputEx.Group, [{
      * @return {Array} An array of values [value1, value2, ...]
      */
     getValue: function() {
-      var values = [], i, n = this.inputs.length;
+      var value = "", i = 0, n = this.inputs.length;
       for (i = 0; i < n; i++) {
-        var obj = {};
-        obj[this.inputs[i].options.name] = this.inputs[i].getValue()
-        values.push(obj);
-        //values.push(this.inputs[i].getValue());
+        value += this.inputs[i].getValue();
       }
-      return values;
-    }
+      return value;
+    },
+
+
+    /**
+     * Validate each field
+     * @returns {Boolean} true if all fields validate and required fields are not empty
+     */
+    validate: function() {
+      var response = true;
+
+      var val = this.getValue();
+
+      // empty field
+      if (val === '') {
+        // validate only if not required
+        return !this.options.required;
+      }
+
+      //check the lenght of each input
+      for(var i = 0; i < this.inputs.length; i++){
+        if(this.inputs[i].length < this.inputs[i].options.minLength)
+          return false;
+      }
+
+      // Check regex matching and minLength (both used in password field...)
+      var result = true;
+
+      // if we are using a regular expression
+      if (this.options.regexp) {
+        result = result && val.match(this.options.regexp);
+      }
+
+      return result;
+    },
+
+
+    initAutoTab: function() {
+       if (this.inputs.length == 0) return;
+       
+        // verify charCode (don't auto tab when pressing "tab", "arrow", etc...)
+       var checkNumKey = function(charCode) {
+         for (var i=48; i <= 122; i++) {
+            if (charCode == i) return true;
+         }
+         return false;       
+       };
+       
+       // Function that checks charCode and execute tab action
+       var that = this;
+       var autoTab = function(inputIndex) {
+           // later to let input update its value
+         lang.later(0, that, function() {
+             var input = that.inputs[inputIndex];
+             
+             // check input.el.value (string) because getValue doesn't work
+             // example : if input.el.value == "06", getValue() == 6 (length == 1 instead of 2)
+             if (input.el.value.length == input.options.maxLength) {
+                that.inputs[inputIndex+1].focus();
+             }
+         });
+       };
+       
+       // add listeners on inputs
+       for(var i = 0; i < this.inputs.length; i++){
+         Event.addListener(this.inputs[i].el, "keypress", function(e, el) {
+            for(var i=0; i < this.inputs.length;i++){
+              if(this.inputs[i].el == e.currentTarget) break;
+            }
+            if (checkNumKey(Event.getCharCode(e)) && i < this.inputs.length - 1) {
+                autoTab(i);
+             }
+        }, this, true);         
+       }
+    }    
 
   });
 
@@ -6017,7 +6212,32 @@ inputEx.registerType("group", inputEx.Group, [{
     name: "name",
     choices: [],
     required: true
-  },{ 
+  }, {
+    type: "string",
+    label: "Label",
+    name: "label",
+    value: ''
+  },{
+    type: "boolean",
+    label: "On same line?",
+    name: "align",
+    value: false
+  }, {
+    type: "boolean",
+    label: "On new line?",
+    name: "newline",
+    value: false
+  },{
+    type: "boolean",
+    label: "Label on top?",
+    name: "toplabel",
+    value: false
+  }, {
+    type: 'string',
+    label: 'RegExp Validation',
+    name: 'regexp',
+    value: ''
+  }, { 
     type: 'list', 
     label: 'Fields', 
     name: 'fields', 
@@ -6026,9 +6246,214 @@ inputEx.registerType("group", inputEx.Group, [{
     type: 'list',
     name: 'separators',
     label: 'Separators',
+    elementType: {type: 'string'},
     required: true
   }], true);
 
+})();(function() {
+  
+   var lang = YAHOO.lang, Dom = YAHOO.util.Dom, Event = YAHOO.util.Event;
+  
+/**
+ * A meta field to put N fields on the same line, separated by separators
+ * @class inputEx.MultiField
+ * @extends inputEx.Group
+ * @constructor
+ * @param {Object} options Added options:
+ * <ul>
+ *    <li>separators: array of string inserted</li>
+ * </ul>
+ */
+inputEx.MultiField = function(options) {
+   inputEx.MultiField.superclass.constructor.call(this, options);
+};
+
+lang.extend( inputEx.MultiField, inputEx.Group, {
+   /**
+    * Set the default values of the options
+    * @param {Object} options Options object as passed to the constructor
+    */
+   setOptions: function(options) {
+      inputEx.MultiField.superclass.setOptions.call(this, options);
+
+      // Overwrite options
+      this.options.className = options.className ? options.className : 'inputEx-MultiField';
+      
+      // Added options
+      this.options.separators = options.separators;
+   },
+     
+  
+  render: function() {
+
+      // Create the div wrapper for this group
+     this.divEl = inputEx.cn('div', {className: this.options.className});
+     if(this.options.id) {
+       this.divEl.id = this.options.id;
+    }
+
+     // Label element
+     if (YAHOO.lang.isString(this.options.label)) {
+        this.labelDiv = inputEx.cn('div', {id: this.divEl.id+'-label', className: 'inputEx-label', 'for': this.divEl.id+'-field'});
+        this.labelEl = inputEx.cn('label', null, null, this.options.label === "" ? "&nbsp;" : this.options.label);
+        this.labelDiv.appendChild(this.labelEl);
+        this.divEl.appendChild(this.labelDiv);
+      }
+  
+       this.renderFields(this.divEl);     
+
+       if(this.options.disabled) {
+          this.disable();
+       }
+    
+     // Insert a float breaker
+     this.divEl.appendChild( inputEx.cn('div', {className: "inputEx-clear-div"}, null, " ") );
+  },
+     
+  /**
+   * Render the subfields
+   */
+  renderFields: function(parentEl) {
+      
+     this.appendSeparator(0);
+     
+     if(!this.options.fields) {return;}
+     
+     var i, n=this.options.fields.length, f, field, fieldEl,t;
+     
+     for(i = 0 ; i < n ; i++) {
+        f = this.options.fields[i];
+        if (this.options.required) {f.required = true;}
+        field = this.renderField(f);
+        fieldEl = field.getEl();
+        t = f.type;
+        if(t != "group" && t != "form") {
+           // remove the line breaker (<div style='clear: both;'>)
+           field.divEl.removeChild(fieldEl.childNodes[fieldEl.childNodes.length-1]);
+         }
+        // make the field float left
+        Dom.setStyle(fieldEl, 'float', 'left');
+    
+        this.divEl.appendChild(fieldEl);
+        
+        this.appendSeparator(i+1);
+     }
+  
+    this.setFieldName(this.options.name);
+  
+        
+  },
+  
+  /**
+    * Override to force required option on each subfield
+    * @param {Object} fieldOptions The field properties as required by inputEx()
+    */
+   renderField: function(fieldOptions) {
+      
+      // Subfields should inherit required property
+      if (this.options.required) {
+         fieldOptions.required = true;
+      }
+      
+      return inputEx.MultiField.superclass.renderField.call(this, fieldOptions);
+   },
+  
+  
+  setFieldName: function(name) {
+    if(name) {
+      for(var i = 0 ; i < this.inputs.length ; i++) {
+        var newName = "";
+        if(this.inputs[i].options.name) {
+          newName = name+"["+this.inputs[i].options.name+"]";
+        }
+        else {
+          newName = name+"["+i+"]";
+        }
+        this.inputs[i].setFieldName(newName);
+      }
+    }
+  },
+  
+  /**
+   * Add a separator to the divEl
+   */
+  appendSeparator: function(i) {
+     if(this.options.separators && this.options.separators[i]) {
+        var sep = inputEx.cn('div', {className: 'inputEx-MultiField-separator'}, null, this.options.separators[i]);
+        this.divEl.appendChild(sep);
+      }
+  },
+
+   initEvents: function() {
+      var me = this,
+         blurTimeout;
+
+      inputEx.MultiField.superclass.initEvents.apply(this, arguments);
+
+      Event.addListener(this.divEl, "focusout", function( e ) {
+         // store local copy of the event to use in setTimeout
+         e = lang.merge(e);
+         blurTimeout = window.setTimeout(function() {
+            blurTimeout = null;
+            me.onBlur(e);
+         }, 25);
+      });
+
+      Event.addListener(this.divEl, "focusin", function( e ) {
+         if (blurTimeout !== null) {
+            window.clearTimeout(blurTimeout);
+            blurTimeout = null;
+         }
+         else {
+            me.onFocus(e);
+         }
+      });
+   },
+
+
+     
+  /**
+   * Set the value
+   * @param {Array} values [value1, value2, ...]
+   * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
+   */
+  setValue: function(values, sendUpdatedEvt) {
+    if(!values) {
+         return;
+      }
+      var i, n=this.inputs.length;
+     for (i = 0 ; i < n ; i++) {
+        this.inputs[i].setValue(values[i], false);
+      }
+      
+      this.runFieldsInteractions();
+      
+     if(sendUpdatedEvt !== false) {
+        // fire update event
+         this.fireUpdatedEvt();
+      }
+  },
+  
+  /**
+   * Specific getValue 
+   * @return {Array} An array of values [value1, value2, ...]
+   */
+  getValue: function() {
+     var values = [], i, n=this.inputs.length;
+     for(i = 0 ; i < n; i++) {
+        values.push(this.inputs[i].getValue());
+     }
+     return values;
+  }
+  
+});
+  
+// Register this class as "multifield" type
+inputEx.registerType("multifield", inputEx.MultiField, [
+   { type: 'list', name: 'fields', label: 'Elements', required: true, elementType: {type: 'type'} },
+   { type: 'list', name: 'separators', label: 'Separators', required: true }
+]);
+  
 })();(function() {
    
    var lang = YAHOO.lang;
@@ -6338,6 +6763,7 @@ lang.augmentObject(inputEx.widget.Button.prototype,{
    
 });
 
+
 })();(function() {
 
   var lang = YAHOO.lang,
@@ -6413,6 +6839,7 @@ lang.augmentObject(inputEx.widget.Button.prototype,{
       if (this.options.maxLength) {
         attributes.maxLength = this.options.maxLength;
       }
+
       attributes.autocomplete = this.options.autocomplete ? 'on' : 'off';
 
       // Create the node
@@ -6505,6 +6932,11 @@ lang.augmentObject(inputEx.widget.Button.prototype,{
       if (this.options.minLength) {
         result = result && val.length >= this.options.minLength;
       }
+
+      if (this.options.maxLength) {
+        result = result && val.length <= this.options.maxLength;
+      }
+
       return result;
     },
 
@@ -6632,7 +7064,18 @@ lang.augmentObject(inputEx.widget.Button.prototype,{
     label: 'Min. length',
     name: 'minLength',
     value: 0
-  }]);
+  }, {
+    type: 'integer',
+    label: 'Max. length',
+    name: 'maxLength',
+    value: 255
+  }, {
+    type: 'string',
+    label: 'RegExp Validation',
+    name: 'regexp',
+    value: ''
+  }
+  ]);
 
 })();(function () {
 	
@@ -7440,13 +7883,17 @@ inputEx.registerType("url", inputEx.UrlField, [
       inputEx.ListField.superclass.setOptions.call(this, options);
 
       this.options.className = options.className ? options.className : 'inputEx-Field inputEx-ListField';
-
       this.options.sortable = lang.isUndefined(options.sortable) ? false : options.sortable;
       this.options.useButtons = lang.isUndefined(options.useButtons) ? true : options.useButtons;
-      this.options.editable = lang.isUndefined(options.editable) ? true : options.editable;      
+      this.options.editable = lang.isUndefined(options.editable) ? true : options.editable;
       this.options.elementType = options.elementType || {
         type: 'table'
       };
+
+      this.options.legend = options.legend || '';
+
+      this.options.collapsible = lang.isUndefined(options.collapsible) ? false : options.collapsible;
+      this.options.collapsed = lang.isUndefined(options.collapsed) ? false : options.collapsed;
 
       this.options.unique = lang.isUndefined(options.unique) ? false : options.unique;
 
@@ -7462,10 +7909,51 @@ inputEx.registerType("url", inputEx.UrlField, [
         //console.log(options.elementType.name)
     },
 
+    generateId: function(options){
+      
+      //get the parentfield name
+      var elementTypeName = 'root';
+
+      if(typeof options.elementType !== 'undefined' && typeof options.elementType.name !== 'undefined')
+        elementTypeName = options.elementType.name;
+
+      var id = elementTypeName + '-List';
+
+      return (options.id || id)
+    },
+
+
     /**
      * Render the addButton
      */
     renderComponent: function() {
+
+      this.legend = inputEx.cn('legend', {
+        className: 'inputEx-Group-legend'
+      });
+
+      // Option Collapsible
+      if (this.options.legend != '' && this.options.collapsible) {
+        this.collapseImg = inputEx.cn('div', {
+          className: 'inputEx-ListField-collapseImg'
+        }, null, ' ');
+        this.legend.appendChild(this.collapseImg);
+        inputEx.sn(this.fieldContainer, {
+          className: 'inputEx-Expanded'
+        });
+      }
+
+      if (!lang.isUndefined(this.options.legend) && this.options.legend !== '') {
+        this.legend.appendChild(inputEx.cn("span", null, null, " " + this.options.legend));
+      }
+
+      if (!lang.isUndefined(this.options.legend) && this.options.legend !== '') {
+        this.legend.appendChild(inputEx.cn("a", {className: 'inputEx-link-top'}, null, "Back to top"));
+      }
+
+      if (this.options.collapsible || (!lang.isUndefined(this.options.legend) && this.options.legend !== '')) {
+        this.fieldContainer.appendChild(this.legend);
+      }
 
       // Add element button
       if (this.options.useButtons && this.options.editable) {
@@ -7494,13 +7982,42 @@ inputEx.registerType("url", inputEx.UrlField, [
         }, null, this.options.listAddLabel);
         this.fieldContainer.appendChild(this.addButton);
       }
+
+      // Collapsed at creation ?
+      if (this.options.collapsed) {
+        this.toggleCollapse();
+      }
+
     },
 
     /**
-     * Handle the click event on the add button
+     * Handle the click event on the add button and the 'collapsible option'
      */
     initEvents: function() {
       Event.addListener(this.addButton, 'click', this.onAddButton, this, true);
+      
+      if (this.options.collapsible) {
+        Event.addListener(this.legend, "click", this.toggleCollapse, this, true);
+      }      
+    },
+
+    /**
+     * Toggle the collapse state
+     */
+    toggleCollapse: function() {
+      if (Dom.hasClass(this.fieldContainer, 'inputEx-Expanded')) {
+        Dom.replaceClass(this.fieldContainer, 'inputEx-Expanded', 'inputEx-Collapsed');
+      } else {
+        Dom.replaceClass(this.fieldContainer, 'inputEx-Collapsed', 'inputEx-Expanded');
+      }
+    },
+
+    toggleCollapseImage: function(){
+      if (this.subFields.length == 0 && this.options.collapsible){
+        Dom.setStyle(this.collapseImg, 'display', 'none');
+      }else if (this.subFields.length > 0 && this.options.collapsible){
+        Dom.setStyle(this.collapseImg, 'display', '');
+      }      
     },
 
     /**
@@ -7547,10 +8064,10 @@ inputEx.registerType("url", inputEx.UrlField, [
      * @param {Array} value The list of values to set
      * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
      */
-    setValue: function(value, sendUpdatedEvt) {
+    setValue: function(value, sendUpdatedEvt) {      
       if (!lang.isArray(value) && value != '') {
-        console.log(value)
-        throw new Error("inputEx.ListField.setValue expected an array, got " + (typeof value));
+        //if the value is not an array, make it one
+        value = [value]        
       }
 
       // Set the values (and add the lines if necessary)
@@ -7577,10 +8094,12 @@ inputEx.registerType("url", inputEx.UrlField, [
      * Return the array of values
      * @return {Array} The array
      */
-    getValue: function() {
+    getValue: function(path) {
       var values = [];
       for (var i = 0; i < this.subFields.length; i++) {
-        values[i] = this.subFields[i].getValue();
+        var local_path = this.subFields[i].options.name + (['table','list'].indexOf(this.subFields[i].type) >= 0 ? "[" + i + "]" : "");
+        local_path = !path ? local_path : path + "." + local_path
+        values[i] = this.subFields[i].getValue(local_path);
       }
       return values;
     },
@@ -7602,6 +8121,8 @@ inputEx.registerType("url", inputEx.UrlField, [
       // Adds it to the local list
       this.subFields.push(subFieldEl);
 
+      this.toggleCollapseImage();
+
       return subFieldEl;
     },
 
@@ -7613,6 +8134,7 @@ inputEx.registerType("url", inputEx.UrlField, [
         for (var i = 0; i < this.subFields.length; i++) {
           var subFieldEl = this.subFields[i];
           subFieldEl.setFieldName(this.options.name + "[" + i + "]");
+          subFieldEl.setFieldId(this.options.id + "-" + i)
         }
       }
     },
@@ -7663,13 +8185,15 @@ inputEx.registerType("url", inputEx.UrlField, [
       // Instantiate the new subField
       var opts = lang.merge({}, this.options.elementType);
 
+      opts.id = this.options.id + "-" + this.subFields.length;
+
       // Retro-compatibility with deprecated inputParams Object : TODO -> remove
       if (lang.isObject(opts.inputParams) && !lang.isUndefined(value)) {
         opts.inputParams.value = value;
 
         // New prefered way to set options of a field
       } else if (!lang.isUndefined(value)) {
-        opts.value = value;
+        opts.value = value;        
       }
 
       var el = inputEx(opts, this);
@@ -7856,6 +8380,7 @@ inputEx.registerType("url", inputEx.UrlField, [
       this.fireUpdatedEvt();
     },
 
+
     /**
      * Remove the line from the dom and the subField from the list.
      * @param {integer} index The index of the element to remove
@@ -7869,6 +8394,8 @@ inputEx.registerType("url", inputEx.UrlField, [
 
       // Remove the element
       elementDiv.parentNode.removeChild(elementDiv);
+
+      this.toggleCollapseImage();
 
       //destroy the field
       //field.destroy();
@@ -7904,6 +8431,20 @@ inputEx.registerType("url", inputEx.UrlField, [
     label: 'Sortable?',
     required: false,
     name: 'sortable'
+  }, {
+    type: 'string',
+    label: 'Legend',
+    name: 'legend'
+  }, {
+    type: 'boolean',
+    label: 'Collapsible',
+    name: 'collapsible',
+    value: false
+  }, {
+    type: 'boolean',
+    label: 'Collapsed',
+    name: 'collapsed',
+    value: false
   }, {
     type: 'type',
     label: 'List element type',
@@ -8343,7 +8884,7 @@ lang.extend(inputEx.AutoComplete, inputEx.StringField, {
 	         Dom.addClass(this.divEl, "inputEx-typeInvite");
 			 if (this.el.value == '') this.el.value = this.options.typeInvite;
      }
-},
+   },
    /**
     * onChange event handler
     * @param {Event} e The original 'change' event
@@ -8351,7 +8892,7 @@ lang.extend(inputEx.AutoComplete, inputEx.StringField, {
    onChange: function(e) {
       this.setClassFromState();
       // Clear the field when no value 
-	 if (this.hiddenEl.value != this.el.value) this.hiddenEl.value = this.el.value;
+	    if (this.hiddenEl.value != this.el.value) this.hiddenEl.value = this.el.value;
       lang.later(50, this, function() {
          if(this.el.value == "") {
             this.setValue("");
@@ -8370,12 +8911,12 @@ lang.extend(inputEx.AutoComplete, inputEx.StringField, {
       // "inherited" from inputex.Field :
       //    (can't inherit of inputex.StringField because would set this.el.value...)
       //
-   // set corresponding style
-   this.setClassFromState();
+      // set corresponding style
+      this.setClassFromState();
 
-   if(sendUpdatedEvt !== false) {
-      // fire update event
-         this.fireUpdatedEvt();
+      if(sendUpdatedEvt !== false) {
+        // fire update event
+        this.fireUpdatedEvt();
       }
    },
    
@@ -8477,8 +9018,12 @@ lang.extend(inputEx.InPlaceEdit, inputEx.Field, {
       this.options.visu = options.visu;
       
       this.options.editorField = options.editorField;
+
+      this.options.securedisplay = options.securedisplay;
+
+      this.options.alwayshide = options.alwayshide;
       
-      this.options.buttonTypes = options.buttonTypes || {ok:"submit",cancel:"link"};
+      this.options.buttonTypes = options.buttonTypes || {ok:"javascript",cancel:"link"};
       
       this.options.animColors = options.animColors || null;
    },
@@ -8624,6 +9169,13 @@ lang.extend(inputEx.InPlaceEdit, inputEx.Field, {
    onOkEditor: function(e) {
       Event.stopEvent(e);
       
+      var errorMsg = this.editorField.getStateString(this.editorField.getState());
+
+      if (errorMsg != ''){
+         alert(errorMsg);
+         return false;
+      }
+
       var newValue = this.editorField.getValue();
       this.setValue(newValue);
       
@@ -8633,6 +9185,20 @@ lang.extend(inputEx.InPlaceEdit, inputEx.Field, {
       var that = this;
       setTimeout(function() {that.updatedEvt.fire(newValue);}, 50);      
    },
+
+
+    /**
+     * Validate each field
+     * @returns {Boolean} true if all fields validate and required fields are not empty
+     */
+    validate: function() {
+
+      //when the control is loaded, the value (if any) is not already set into the editor
+      //therefore it may trigger a validation error because the editor will return empty or invalid.
+      this.editorField.setValue(this.getValue());
+
+      return this.editorField.getState() == 'valid' ? true : false;
+   },   
 
    
    /**
@@ -8683,10 +9249,17 @@ lang.extend(inputEx.InPlaceEdit, inputEx.Field, {
     */
    setValue: function(value, sendUpdatedEvt) {   
       // Store the value
+
+      var nb, match;
+
 	   this.value = value;
    
-      if(lang.isUndefined(value) || value == "") {
+      if(lang.isUndefined(value) || value == "" || this.options.alwayshide) {
          inputEx.renderVisu(this.options.visu, inputEx.messages.emptyInPlaceEdit, this.formattedContainer);
+      }
+      else if((nb = parseInt(this.options.securedisplay)) > 0 && (match = this.value.match(new RegExp(".{" + nb + "}$")))) {
+         var masked = this.value.substr(0, this.value.length  - match[0].length).replace(/./g, "*") + match[0]
+         inputEx.renderVisu(this.options.visu, masked, this.formattedContainer);
       }
       else {
          inputEx.renderVisu(this.options.visu, this.value, this.formattedContainer);
@@ -8716,40 +9289,114 @@ inputEx.messages.okEditor = "Ok";
 
 // Register this class as "inplaceedit" type
 inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
+   { type: 'boolean', label: 'Always Hide', name: 'alwayshide'},
+   { type: 'integer', label: 'Show last # chars', name: 'securedisplay'},
    { type:'type', label: 'Editor', name: 'editorField'}
 ]);
 
 })();(function() {
   var util = YAHOO.util,
       Event = YAHOO.util.Event,
-      lang = YAHOO.lang;
+      lang = YAHOO.lang,
+      Dom = YAHOO.util.Dom;
 
   /**
-   * Create a table field select field
-   * @class inputEx.SelectField
+   * Create an autocomplete field to select a field
+   * @class inputEx.AutoComplete
    * @extends inputEx.Field
    * @constructor
-   * @param {Object} options Added options:
-   * <ul>
-   *    <li>choices: contains the list of choices configs ([{value:'usa'}, {value:'fr', label:'France'}])</li>
-   * </ul>
    */
   inputEx.DynamicField = function(options) {
-    inputEx.DynamicField.superclass.constructor.call(this, options);
-
-    this.options.fieldDidChangeEvt = new util.CustomEvent('fieldDidChange', this);
-
-    this.options.parentDynamicTable = this.retrieveParentDynamicTable(this);
-
-    var table_key = null;
-    if (typeof this.options.parentDynamicTable != 'undefined' && this.options.parentDynamicTable){
-      table_key = this.options.parentDynamicTable.inputs[0].options.selectedValue;
-    }
-    
-    this.updateFieldList(table_key);
+    inputEx.DynamicField.superclass.constructor.call(this, options);      
   };
 
-  lang.extend(inputEx.DynamicField, inputEx.SelectField, {
+  lang.extend(inputEx.DynamicField, inputEx.AutoComplete, {
+     
+    /**
+     * Set the default values of the options
+     * @param {Object} options Options object as passed to the constructor
+     */     
+    setOptions: function(options) {
+      inputEx.DynamicField.superclass.setOptions.call(this, options);
+
+      this.options.parentDynamicTable = this.retrieveParentDynamicTable(this);
+
+      if (typeof this.options.parentDynamicTable != 'undefined' && this.options.parentDynamicTable)
+        this.options.table_key = this.options.parentDynamicTable.inputs[0].options.selectedValue;
+      else
+        this.options.table_key = '';
+
+      this.options.typeInvite = "Start typing a field name",
+
+      this.options.datasourceParameters = {
+        responseType: YAHOO.util.XHRDataSource.TYPE_JSARRAY,
+        responseSchema: {
+          fields: ["name", "key"]
+        }
+      };
+      
+      this.options.autoComp = {
+        generateRequest: function(sQuery) {return "&query=" + sQuery},
+        applyLocalFilter: true,
+        queryMatchContains: true,
+        typeAhead: false,
+        animVert: false,
+        forceSelection: false
+      };
+
+      this.options.datasource = new YAHOO.util.XHRDataSource("<%=CaseCenter::Application.routes.url_helpers.admin_fields_path(:format => :json)%>?table_key=" + this.options.table_key);
+
+    },
+
+     /**
+      * Build the YUI autocompleter
+      */
+     buildAutocomplete: function() {
+        // Call this function only when this.el AND this.listEl are available
+        if(!this._nElementsReady) { this._nElementsReady = 0; }
+        this._nElementsReady++;
+        if(this._nElementsReady != 2) return;
+
+        if(!lang.isUndefined(this.options.datasourceParameters))
+        {
+           for (param in this.options.datasourceParameters)
+           {
+              this.options.datasource[param] = this.options.datasourceParameters[param];
+           }
+        }
+
+        
+        // Instantiate AutoComplete
+        this.oAutoComp = new YAHOO.widget.AutoComplete(this.el, this.listEl, this.options.datasource, this.options.autoComp);
+        
+        if(!this.oAutoComp.itemSelectEvent)
+          return; //this may happen when the field is embedded in the type editor property panel because the field may be deleted right after the autocomplete event is fired.
+
+        if(!lang.isUndefined(this.options.generateRequest))
+        {
+            this.oAutoComp.generateRequest = this.options.generateRequest;
+        }
+        // subscribe to the itemSelect event
+        this.oAutoComp.itemSelectEvent.subscribe(this.itemSelectHandler, this, true);
+
+        // subscribe to the textboxBlur event (instead of "blur" event on this.el)
+        //                                    |-------------- autocompleter ----------|
+        //    -> order : "blur" on this.el -> internal callback -> textboxBlur event -> this.onBlur callback
+        //    -> so fired after autocomp internal "blur" callback (which would erase typeInvite...)
+        this.oAutoComp.textboxBlurEvent.subscribe(this.onBlur, this, true);
+
+        this.setClassFromState();
+     },
+
+     /**
+      * itemSelect handler
+      * @param {} sType
+      * @param {} aArgs
+      */
+     itemSelectHandler: function(sType, aArgs) {
+        var aData = aArgs[2];
+        this.setValue(aData[0] + '@_@@_@' + aData[1]);
+     },
 
     /**
      * Recursively go through the chain of parents for the
@@ -8767,16 +9414,47 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
     },
 
     /**
-     * Fire the "tableDidChange" event
-     * Escape the stack using a setTimeout
-     */
-    fireFieldDidChangeEvt: function() {
-      // Uses setTimeout to escape the stack (that originiated in an event)
-      var that = this;
-      setTimeout(function() {
-        that.options.fieldDidChangeEvt.fire(that.getValue(), that);
-      }, 50);
-    },
+    * Render the hidden list element
+    */
+    renderComponent: function() {
+    
+     // This element wraps the input node in a float: none div
+     this.wrapEl = inputEx.cn('div', {className: 'inputEx-StringField-wrapper'});
+
+     // Attributes of the input field
+     var attributes = {
+       type: 'text',
+       id: YAHOO.util.Dom.generateId()
+     };
+     if(this.options.size) attributes.size = this.options.size;
+     if(this.options.readonly) attributes.readonly = 'readonly';
+     if(this.options.maxLength) attributes.maxLength = this.options.maxLength;
+
+     // Create the node
+     this.el = inputEx.cn('input', attributes);
+
+     this.linkEl = inputEx.cn('span', {className: 'inputEx-link-img'});
+
+     // Create the hidden input
+     var hiddenAttrs = {
+       type: 'hidden',
+       value: ''
+     };
+     if(this.options.name) hiddenAttrs.name = this.options.name;
+     this.hiddenEl = inputEx.cn('input', hiddenAttrs);
+
+     // Append it to the main element
+     this.wrapEl.appendChild(this.el);
+     this.wrapEl.appendChild(this.hiddenEl);
+     this.wrapEl.appendChild(this.linkEl);
+     this.fieldContainer.appendChild(this.wrapEl);
+
+     // Render the list :
+     this.listEl = inputEx.cn('div', {id: Dom.generateId() });
+     this.fieldContainer.appendChild(this.listEl);
+
+     Event.onAvailable([this.el, this.listEl], this.buildAutocomplete, this, true);
+    },    
 
     /**
      * Register the tableDidChange event
@@ -8786,149 +9464,10 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
       event.subscribe(this.onTableDidChange, this, true);
     },
 
-    onTableDidChange: function(event, args) {
-      this.clearFieldsList();
-      this.updateFieldList(args[0]);
-      this.setValue(this.options.selectedValue, false);
-    },
-
     onChange: function(e) {
-      this.fireFieldDidChangeEvt();
-      // inputEx.DynamicField.superclass.onChange.call(this, e);
+      inputEx.DynamicField.superclass.onChange.call(this, e);
     },
 
-
-    /**
-     * Retrieve the list of tables to be used to populate
-     * the select field
-     */
-    updateFieldList: function(table_key) {      
-      try {
-        if(table_key && table_key != ''){
-          for (var i = 0; i < inputEx.TablesFields.length; i++) {
-            if (inputEx.TablesFields[i].table.key == table_key) {
-              for (var j = 0; j < inputEx.TablesFields[i].table.fields.length; j++) {
-                this.addChoice({
-                  label: inputEx.TablesFields[i].table.fields[j].name,
-                  value: inputEx.TablesFields[i].table.fields[j].key
-                });
-              }
-              break;
-            }
-          }
-        }else{
-          for(var i=0; i<inputEx.OrphanFields.length;i++){
-            this.addChoice({
-              label: inputEx.OrphanFields[i].field.name,
-              value: inputEx.OrphanFields[i].field.key
-            });
-          }
-        }
-      } catch (err) {
-        console.log("inputEx.TablesFields is undefined. - " + err)
-      }
-
-      this.fireFieldDidChangeEvt();
-    },
-
-    /**
-     * Return the value
-     * @return {Any} the selected value
-     */
-    getValue: function() {
-
-      var choiceIndex;
-
-      if (this.el.selectedIndex >= 0) {
-
-        choiceIndex = inputEx.indexOf(this.el.childNodes[this.el.selectedIndex], this.choicesList, function(node, choice) {
-          return node === choice.node;
-        });
-        return this.choicesList[choiceIndex].value;
-
-      } else {
-
-        return "";
-
-      }
-    },
-
-
-
-    /**
-     * Set the value
-     * @param {String} value The value to set
-     * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
-     */
-    setValue: function(value, sendUpdatedEvt) {
-
-      var i, length, choice, firstIndexAvailable, choiceFound = false;
-
-      this.options.selectedValue = value;
-
-      for (i = 0, length = this.choicesList.length; i < length; i += 1) {
-
-        if (this.choicesList[i].visible) {
-
-          choice = this.choicesList[i];
-
-          if (value === choice.value) {
-
-            choice.node.selected = "selected";
-            choiceFound = true;
-            break; // choice node already found
-          } else if (lang.isUndefined(firstIndexAvailable)) {
-
-            firstIndexAvailable = i;
-          }
-
-        }
-
-      }
-
-      // select value from first choice available when
-      // value not matching any visible choice
-      //
-      // if no choice available (-> firstIndexAvailable is undefined), skip value setting
-      if (!choiceFound && !lang.isUndefined(firstIndexAvailable)) {
-
-        choice = this.choicesList[firstIndexAvailable];
-        choice.node.selected = "selected";
-        value = choice.value;
-
-      }
-
-      // Call Field.setValue to set class and fire updated event
-      inputEx.SelectField.superclass.setValue.call(this, value, sendUpdatedEvt);
-    },
-
-
-    /**
-     * Set the default values of the options
-     * @param {Object} options Options object as passed to the constructor
-     */
-    setOptions: function(options) {
-
-      var i, length;
-
-      inputEx.SelectField.superclass.setOptions.call(this, options);
-
-      this.options.choices = lang.isArray(options.choices) ? options.choices : [];
-
-      // Retro-compatibility with old pattern (changed since 2010-06-30)
-      if (lang.isArray(options.selectValues)) {
-
-        for (i = 0, length = options.selectValues.length; i < length; i += 1) {
-
-          this.options.choices.push({
-            value: options.selectValues[i],
-            label: "" + ((options.selectOptions && !lang.isUndefined(options.selectOptions[i])) ? options.selectOptions[i] : options.selectValues[i])
-          });
-
-        }
-      }
-
-    },
 
     destroy: function() {
 
@@ -8936,43 +9475,86 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
         this.options.tableDidChangeEvt.unsubscribe(this.onTableDidChange, this); 
       }
 
-      // Unsubscribe all listeners on the fieldDidChangeEvt
-      this.options.fieldDidChangeEvt.unsubscribeAll();
-
       // Destroy group itself      
       inputEx.DynamicField.superclass.destroy.call(this);
     },
 
+    /**
+     * Set the value
+     * @param {Any} value Value to set
+     * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
+     */
+    setValue: function(value, sendUpdatedEvt) {      
+      this.hiddenEl.value = value || "";
+      this.el.value  =  this.hiddenEl.value.split('@_@@_@')[0] || "";
+      // "inherited" from inputex.Field :
+      //    (can't inherit of inputex.StringField because would set this.el.value...)
+      //
+      // set corresponding style
+      this.setClassFromState();
+
+      if(sendUpdatedEvt !== false) {
+        // fire update event
+        this.fireUpdatedEvt();
+      }
+    },
+    
+    /**
+     * Return the hidden value (stored in a hidden input)
+     */
+    getValue: function() {
+       return this.hiddenEl.value;
+    },
+
+    /**
+    * onChange event handler
+    * @param {Event} e The original 'change' event
+    */
+    onChange: function(e) {
+      this.setClassFromState();
+      // Clear the field when no value 
+      if (this.hiddenEl.value.split('@_@@_@')[0] != this.el.value) this.hiddenEl.value = this.el.value;
+      lang.later(50, this, function() {
+       if(this.el.value == "") {
+        this.setValue("");
+       }
+      });
+    },    
+
+
+    onBlur: function(e){
+     if (this.hiddenEl.value.split('@_@@_@')[0] != this.el.value && this.el.value != this.options.typeInvite) this.el.value = this.hiddenEl.value;
+     if(this.el.value == '' && this.options.typeInvite) {
+       Dom.addClass(this.divEl, "inputEx-typeInvite");
+       if (this.el.value == '') this.el.value = this.options.typeInvite;
+     }
+    },
+
+    /**
+     * Returns the current state (given its value)
+     * @return {String} One of the following states: 'empty', 'required', 'valid' or 'invalid'
+     */
+    getState: function() {
+      // if the field is empty :
+      if (this.isEmpty()) {
+        return this.options.required ? inputEx.stateRequired : inputEx.stateEmpty;
+      }
+
+      if(this.parentField.type != 'multifield'){
+        // if the field is empty :
+        if (this.hiddenEl.value.indexOf('@_@@_@') >= 0) {
+          return 'linked';
+        }
+
+        return 'unlinked';
+      }
+    }
 
   });
 
-
-  // Augment prototype with choice mixin (functions : addChoice, removeChoice, etc.)
-  lang.augmentObject(inputEx.SelectField.prototype, inputEx.mixin.choice);
-
-
   // Register this class as "select" type
-  inputEx.registerType("dynamicfield", inputEx.DynamicField, [{
-    type: 'list',
-    name: 'choices',
-    label: 'Choices',
-    elementType: {
-      type: 'group',
-      fields: [{
-        label: 'Value',
-        name: 'value',
-        value: ''
-      }, // not required to allow '' value (which is default)
-      {
-        label: 'Label',
-        name: 'label'
-      } // optional : if left empty, label is same as value
-      ]
-    },
-    value: [],
-    required: true
-  }]);
-
+  inputEx.registerType("dynamicfield", inputEx.DynamicField, [
+  ]);
 }());(function() {
   var util = YAHOO.util
   var Event = YAHOO.util.Event,
@@ -9473,8 +10055,9 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
 
               fields.push({
                 label: inputEx.TablesFields[i].table.fields[j].name,
-                name: inputEx.TablesFields[i].table.fields[j].key,
-                type: this.getFieldType(inputEx.TablesFields[i].table.fields[j].field_type),
+                name: inputEx.TablesFields[i].table.fields[j].name + '@_@@_@' + inputEx.TablesFields[i].table.fields[j].key,
+                value: inputEx.TablesFields[i].table.fields[j].default_value,
+                type: this.getFieldType(inputEx.TablesFields[i].table.fields[j].field_type)
               });
             }
             break;
@@ -9505,7 +10088,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
           group.inputs[i].setValue(fields);
         }
       }
-    },
+    }
 
 
   });
@@ -9536,6 +10119,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
     type: 'list',
     label: 'Fields',
     name: 'fields',
+    sortable: 'true',
     elementType: {
       type: 'type'
     }
@@ -9682,7 +10266,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
     destroy: function() {
       // Destroy the combine field itself      
       inputEx.TableField.superclass.destroy.call(this);
-    },
+    }
   });
 
   // Register this class as "form" type
