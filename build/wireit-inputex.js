@@ -4562,7 +4562,7 @@ YAHOO.inputEx = inputEx;
     render: function() {
       // Create a DIV element to wrap the editing el and the image
       this.divEl = inputEx.cn('div', {
-        className: 'inputEx-fieldWrapper ' + this.options.id + '-inputEx-fieldWrapper'
+        className: 'inputEx-fieldWrapper ' + this.options.name + '-inputEx-fieldWrapper'
       });
       if (this.options.id) {
         this.divEl.id = this.options.id;
@@ -4594,7 +4594,7 @@ YAHOO.inputEx = inputEx;
       if (YAHOO.lang.isString(this.options.label)) {
         this.labelDiv = inputEx.cn('div', {
           id: this.divEl.id + '-label-wrapper',
-          className: 'inputEx-label ' + this.options.id + '-inputEx-label',
+          className: 'inputEx-label ' + this.options.name + '-inputEx-label',
           'for': this.divEl.id + '-field'
         });
         this.labelEl = inputEx.cn('label', {id: this.options.id + '-label' }, null, this.options.label === "" ? "&nbsp;" : this.options.label);
@@ -4627,7 +4627,7 @@ YAHOO.inputEx = inputEx;
       if (this.options.description) {
         this.fieldContainer.appendChild(inputEx.cn('div', {
           id: this.divEl.id + '-desc',
-          className: 'inputEx-description ' + this.options.id + '-inputEx-description'
+          className: 'inputEx-description ' + this.options.name + '-inputEx-description'
         }, null, this.options.description));
       }
 
@@ -4639,9 +4639,9 @@ YAHOO.inputEx = inputEx;
       }, " "));
 
       if(this.options.hide)
-        Dom.setStyle(this.divEl, 'display', 'none');
+        Dom.setStyle(this.divEl, 'visibility', 'hidden');
       else
-        Dom.setStyle(this.divEl, 'display', '');
+        Dom.setStyle(this.divEl, 'visibility', 'visible');
 
       if(this.options.readonly)
         this.disable();
@@ -4857,7 +4857,7 @@ YAHOO.inputEx = inputEx;
       }
       if (!this.msgEl) {
         this.msgEl = inputEx.cn('div', {
-          className: 'inputEx-message ' + this.options.id + '-inputEx-message'
+          className: 'inputEx-message ' + this.options.name + '-inputEx-message'
         });
         try {
           var divElements = this.divEl.getElementsByTagName('div');
@@ -4935,7 +4935,7 @@ YAHOO.inputEx = inputEx;
   };
 
   inputEx.Field.groupOptions = [{
-    type: "dynamicfield",
+    type: "autocomplete-field",
     label: "Field",
     name: "name",    
     required: true
@@ -6207,7 +6207,7 @@ inputEx.registerType("group", inputEx.Group, [{
 
   // Register this class as "combine" type
   inputEx.registerType("combine", inputEx.CombineField, [{
-    type: "dynamicfield",
+    type: "autocomplete-field",
     label: "Field",
     name: "name",
     choices: [],
@@ -9301,32 +9301,25 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
       Dom = YAHOO.util.Dom;
 
   /**
-   * Create an autocomplete field to select a field
+   * Create an autocomplete field to select a screen flow
    * @class inputEx.AutoComplete
    * @extends inputEx.Field
    * @constructor
    */
-  inputEx.DynamicField = function(options) {
-    inputEx.DynamicField.superclass.constructor.call(this, options);      
+  inputEx.CCAutoComplete = function(options) {
+    inputEx.CCAutoComplete.superclass.constructor.call(this, options);      
   };
 
-  lang.extend(inputEx.DynamicField, inputEx.AutoComplete, {
+  lang.extend(inputEx.CCAutoComplete, inputEx.AutoComplete, {
      
     /**
      * Set the default values of the options
      * @param {Object} options Options object as passed to the constructor
      */     
     setOptions: function(options) {
-      inputEx.DynamicField.superclass.setOptions.call(this, options);
+      inputEx.CCAutoComplete.superclass.setOptions.call(this, options);
 
-      this.options.parentDynamicTable = this.retrieveParentDynamicTable(this);
-
-      if (typeof this.options.parentDynamicTable != 'undefined' && this.options.parentDynamicTable)
-        this.options.table_key = this.options.parentDynamicTable.inputs[0].options.selectedValue;
-      else
-        this.options.table_key = '';
-
-      this.options.typeInvite = "Start typing a field name",
+      this.options.typeInvite = options.typeInvite;
 
       this.options.datasourceParameters = {
         responseType: YAHOO.util.XHRDataSource.TYPE_JSARRAY,
@@ -9336,7 +9329,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
       };
       
       this.options.autoComp = {
-        generateRequest: function(sQuery) {return "&query=" + sQuery},
+        generateRequest: function(sQuery) {return "query=" + sQuery},
         applyLocalFilter: true,
         queryMatchContains: true,
         typeAhead: false,
@@ -9344,7 +9337,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
         forceSelection: false
       };
 
-      this.options.datasource = new YAHOO.util.XHRDataSource("<%=CaseCenter::Application.routes.url_helpers.admin_fields_path(:format => :json)%>?table_key=" + this.options.table_key);
+      this.options.datasource = options.datasource;
 
     },
 
@@ -9398,21 +9391,7 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
         this.setValue(aData[0] + '@_@@_@' + aData[1]);
      },
 
-    /**
-     * Recursively go through the chain of parents for the
-     * specified field and retrieve its top parent that is
-     * of type table. For any other type null will be returned
-     * or if we reached the end of the chain.
-     */
-    retrieveParentDynamicTable: function(table) {
-      if (table.type == 'table') return table;
-      while (table.parentField && typeof table.parentField != 'undefined') {
-        parentTable = this.retrieveParentDynamicTable(table.parentField, table);
-        if(parentTable && this.parentField != parentTable) return parentTable;
-        return null;
-      }
-    },
-
+ 
     /**
     * Render the hidden list element
     */
@@ -9456,27 +9435,15 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
      Event.onAvailable([this.el, this.listEl], this.buildAutocomplete, this, true);
     },    
 
-    /**
-     * Register the tableDidChange event
-     */
-    setTableDidChangeCallback: function(event) {      
-      this.options.tableDidChangeEvt = event;
-      event.subscribe(this.onTableDidChange, this, true);
-    },
+
 
     onChange: function(e) {
-      inputEx.DynamicField.superclass.onChange.call(this, e);
+      inputEx.CCAutoComplete.superclass.onChange.call(this, e);
     },
 
-
     destroy: function() {
-
-      if(this.options.tableDidChangeEvt){
-        this.options.tableDidChangeEvt.unsubscribe(this.onTableDidChange, this); 
-      }
-
       // Destroy group itself      
-      inputEx.DynamicField.superclass.destroy.call(this);
+      inputEx.CCAutoComplete.superclass.destroy.call(this);
     },
 
     /**
@@ -9528,8 +9495,84 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
        Dom.addClass(this.divEl, "inputEx-typeInvite");
        if (this.el.value == '') this.el.value = this.options.typeInvite;
      }
+    }
+
+  });
+
+}());(function() {
+  var util = YAHOO.util,
+      Event = YAHOO.util.Event,
+      lang = YAHOO.lang,
+      Dom = YAHOO.util.Dom;
+
+  /**
+   * Create an autocomplete field to select a screen flow
+   * @class inputEx.AutoComplete
+   * @extends inputEx.Field
+   * @constructor
+   */
+  inputEx.CCAutoCompleteField = function(options) {
+    inputEx.CCAutoCompleteScreenFlow.superclass.constructor.call(this, options);      
+  };
+
+  lang.extend(inputEx.CCAutoCompleteField, inputEx.CCAutoComplete, {
+    /**
+     * Set the default values of the options
+     * @param {Object} options Options object as passed to the constructor
+     */     
+    setOptions: function(options) {
+      inputEx.CCAutoCompleteField.superclass.setOptions.call(this, options);
+
+      this.options.parentDynamicTable = this.retrieveParentDynamicTable(this);
+
+      this.options.include_all_tables = options.include_all_tables || false;
+
+      if (typeof this.options.parentDynamicTable != 'undefined' && this.options.parentDynamicTable)
+        this.options.table_key = this.options.parentDynamicTable.inputs[0].options.selectedValue;
+      else
+        this.options.table_key = '';
+
+      this.options.datasource = new YAHOO.util.XHRDataSource("<%=CaseCenter::Application.routes.url_helpers.admin_fields_path(:format => :json)%>?include_all_tables=" + this.options.include_all_tables +"&table_key=" + this.options.table_key + "&");
     },
 
+    /**
+     * Recursively go through the chain of parents for the
+     * specified field and retrieve its top parent that is
+     * of type table. For any other type null will be returned
+     * or if we reached the end of the chain.
+     */
+    retrieveParentDynamicTable: function(table) {
+      if (table.type == 'table') return table;
+      while (table.parentField && typeof table.parentField != 'undefined') {
+        parentTable = this.retrieveParentDynamicTable(table.parentField, table);
+        if(parentTable && this.parentField != parentTable) return parentTable;
+        return null;
+      }
+    },
+
+    /**
+     * Register the tableDidChange event
+     */
+    setTableDidChangeCallback: function(event) {      
+      this.options.tableDidChangeEvt = event;
+      event.subscribe(this.onTableDidChange, this, true);
+    },
+
+    onChange: function(e) {
+      inputEx.CCAutoCompleteField.superclass.onChange.call(this, e);
+    },
+
+
+    destroy: function() {
+
+      if(this.options.tableDidChangeEvt){
+        this.options.tableDidChangeEvt.unsubscribe(this.onTableDidChange, this); 
+      }
+
+      // Destroy group itself      
+      inputEx.CCAutoCompleteField.superclass.destroy.call(this);
+    },
+    
     /**
      * Returns the current state (given its value)
      * @return {String} One of the following states: 'empty', 'required', 'valid' or 'invalid'
@@ -9552,9 +9595,39 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
 
   });
 
+
+  // Register this class as "autocomplete-field" type
+  inputEx.registerType("autocomplete-field", inputEx.CCAutoCompleteField, [{
+      type: "boolean",
+      label: "include all tables",
+      name: "include_all_tables"
+    }
+  ], false);
+
+}());(function() {
+  var util = YAHOO.util,
+      Event = YAHOO.util.Event,
+      lang = YAHOO.lang,
+      Dom = YAHOO.util.Dom;
+
+  /**
+   * Create an autocomplete field to select a screen flow
+   * @class inputEx.AutoComplete
+   * @extends inputEx.Field
+   * @constructor
+   */
+  inputEx.CCAutoCompleteScreenFlow = function(options) {
+    options.datasource = new YAHOO.util.XHRDataSource("<%=CaseCenter::Application.routes.url_helpers.admin_screen_flows_path(:format => :json)%>?");
+    inputEx.CCAutoCompleteScreenFlow.superclass.constructor.call(this, options);      
+  };
+
+  lang.extend(inputEx.CCAutoCompleteScreenFlow, inputEx.CCAutoComplete, {
+
+  });
+
   // Register this class as "select" type
-  inputEx.registerType("dynamicfield", inputEx.DynamicField, [
-  ]);
+  inputEx.registerType("autocomplete-screen-flow", inputEx.CCAutoCompleteScreenFlow);
+
 }());(function() {
   var util = YAHOO.util
   var Event = YAHOO.util.Event,
@@ -10126,152 +10199,6 @@ inputEx.registerType("inplaceedit", inputEx.InPlaceEdit, [
   }], true);
 
 
-})();(function() {
-  var util = YAHOO.util,
-      lang = YAHOO.lang,
-      Event = util.Event,
-      Dom = util.Dom;
-
-  /**
-   * Create a group of fields within a FORM tag and adds buttons
-   * @class inputEx.Form
-   * @extends inputEx.Group
-   * @constructor
-   * @param {Object} options The following options are added for Forms:
-   * <ul>
-   *   <li>buttons: list of button definition objects {value: 'Click Me', type: 'submit'}</li>
-   *   <li>ajax: send the form through an ajax request (submit button should be present): {method: 'POST', uri: 'myScript.php', callback: same as YAHOO.util.Connect.asyncRequest callback}</li>
-   *   <li>showMask: adds a mask over the form while the request is running (default is false)</li>
-   * </ul>
-   */
-  inputEx.TableField = function(options) {
-    inputEx.TableField.superclass.constructor.call(this, options);
-  };
-
-  lang.extend(inputEx.TableField, inputEx.CombineField, {
-
-    /**
-     * Adds buttons and set ajax default parameters
-     * @param {Object} options Options object as passed to the constructor
-     */
-    setOptions: function(options) {
-      inputEx.TableField.superclass.setOptions.call(this, options);
-
-      this.options.fields = [{
-        type: 'dynamictable',
-        name: 'table'
-      }, {
-        type: 'dynamicfield',
-        name: 'field'
-      }]
-    },
-
-    onFieldDidChange: function(event, arg) {
-      //this.fireUpdatedEvt();
-    },
-
-    onTableDidChange: function(event, arg) {
-      //this.fireUpdatedEvt();
-    },
-
-    render: function() {
-      // Create the div wrapper for this group
-      this.divEl = inputEx.cn('div', {
-        className: this.options.className
-      });
-      if (this.options.id) {
-        this.divEl.id = this.options.id;
-      }
-
-      Dom.addClass(this.divEl, "inputEx-required");
-
-      // Label element
-      if (YAHOO.lang.isString(this.options.label)) {
-        this.labelDiv = inputEx.cn('div', {
-          id: this.divEl.id + '-label',
-          className: 'inputEx-label',
-          'for': this.divEl.id + '-field'
-        });
-        this.labelEl = inputEx.cn('label', null, null, this.options.label === "" ? "&nbsp;" : this.options.label);
-        this.labelDiv.appendChild(this.labelEl);
-        this.divEl.appendChild(this.labelDiv);
-      }
-
-      this.renderFields(this.divEl);
-
-      if (this.options.disabled) {
-        this.disable();
-      }
-
-      // Insert a float breaker
-      this.divEl.appendChild(inputEx.cn('div', {
-        className: "inputEx-clear-div"
-      }, null, " "));
-    },
-
-
-    /**
-     * Set the value
-     * @param {Array} values [value1, value2, ...]
-     * @param {boolean} [sendUpdatedEvt] (optional) Wether this setValue should fire the updatedEvt or not (default is true, pass false to NOT send the event)
-     */
-    setValue: function(values, sendUpdatedEvt) {
-      inputEx.TableField.superclass.setValue.call(this, values, sendUpdatedEvt);
-      this.inputs[0].fireTableDidChangeEvt(true);
-    },
-
-    /**
-     * Instanciate one field given its parameters, type or fieldClass
-     * @param {Object} fieldOptions The field properties as required by the inputEx() method
-     */
-    renderField: function(fieldOptions) {
-
-      // Instanciate the field
-      var fieldInstance = inputEx(fieldOptions, this);
-
-      if (fieldOptions.type == 'dynamictable') {
-        this.options.tableDidChangeEvt = fieldInstance.options.tableDidChangeEvt;
-        this.options.tableDidChangeEvt.subscribe(this.onTableDidChange, this, true);
-      }
-
-      if (fieldOptions.type == 'dynamicfield') {
-        fieldInstance.setTableDidChangeCallback(this.options.tableDidChangeEvt);
-        fieldInstance.options.fieldDidChangeEvt.subscribe(this.onFieldDidChange, this, true);
-      }
-
-      this.inputs.push(fieldInstance);
-
-      // Create an index to access fields by their name
-      if (fieldInstance.options.name) {
-        this.inputsNames[fieldInstance.options.name] = fieldInstance;
-      }
-
-      // Create the this.hasInteractions to run interactions at startup
-      if (!this.hasInteractions && fieldOptions.interactions) {
-        this.hasInteractions = true;
-      }
-
-      // Subscribe to the field "updated" event to send the group "updated" event
-      fieldInstance.updatedEvt.subscribe(this.onChange, this, true);
-
-      // Subscribe to the field "updated" event to send the group "updated" event
-      // this.options.tableDidChangeEvt.subscribe(this.onChange, this, true);
-
-      return fieldInstance;
-    },
-
-    /**
-     * Purge all event listeners and remove the component from the dom
-     */
-    destroy: function() {
-      // Destroy the combine field itself      
-      inputEx.TableField.superclass.destroy.call(this);
-    }
-  });
-
-  // Register this class as "form" type
-  inputEx.registerType("tablefield", inputEx.TableField, []);
-
 })();/**
  * Display a selectors for keys and auto-update the value field
  * @class inputEx.KeyValueField
@@ -10440,7 +10367,7 @@ lang.extend(inputEx.TypeField, inputEx.Field, {
       
       // The list of all inputEx declared types to be used in the "type" selector
       var selectOptions = [];
-      var skipFields = ["form", "type", "dynamictable", "dynamicfield", "tablefield"]
+      var skipFields = ["form", "type", "dynamictable", "autocomplete-field", "tablefield"]
 
       if(this.getParentField().subFields)
 
